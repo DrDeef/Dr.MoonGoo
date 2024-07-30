@@ -31,6 +31,33 @@ A Discord bot that integrates with the EVE Online API to monitor moon drilling s
    pip install -r requirements.txt
 ```
 
+4. **Eve Online Scopes**
+
+You need to generate your API ID/KEY pair here: https://developers.eveonline.com/applications
+Give it the following scopes:
+
+```bash
+- esi-search.search_structures.v1
+- esi-universe.read_structures.v1
+- esi-assets.read_assets.v1
+- esi-corporations.read_structures.v1
+- esi-assets.read_corporation_assets.v1
+- publicData
+```
+
+5. **Discord application**
+
+Register your application here: https://discord.com/developers/applications
+Navigate to Applications > Bot
+
+Give it following Parameters:
+```bash
+Message Content Intent.
+
+Permission Integer
+- 517544037440
+```
+
 4. **configure the bot**
 
 Update the config.yaml to your needs:
@@ -51,17 +78,16 @@ metenox_moon_drill_ids: []
 
 - !authenticate: NEEDED! Authenticate against the EvE ESI via SSO
 - !setup: Will run the base setup 
-- !setadmin: Set the current channel as Admin-Channel
-- 
+
 
 ## Commands
 
-- **!authenticate**: Authenticate the Bot against the EvE Online ESI API
-  - You need e.g. Director Permissions ingame to check the structural assets
-- **!setup**: Will Setup the Alerting Channel
-- **!setadmin**: Will Setup the Administrative Channel
+- **!authenticate**: Authenticate the bot against the EvE Online ESI API
+  - You need e.g. Director permissions ingame to check the structural assets
+- **!setup**: Will Setup basic parameters
+- **!setadmin**: Will setup the administrative channel
 - **!updatemoondrills**: Update your Moondrill Structures
-- **!debug**: Debug Information about your ESI Token
+- **!debug**: Debug information about your ESI-token
 - **!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with a timer
   
 ## Example Bot Response
