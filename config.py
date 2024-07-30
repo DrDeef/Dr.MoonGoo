@@ -8,6 +8,8 @@ def load_config():
 
 # Save configuration to config.yaml
 def save_config(config):
+    # Convert all channel IDs to strings before saving
+    config['admin_channels'] = [str(chan) for chan in config.get('admin_channels', [])]
     with open("config.yaml", "w") as config_file:
         yaml.dump(config, config_file)
 
@@ -44,3 +46,4 @@ states = {}  # Initialize empty states dictionary
 # Debug prints
 print(f"CLIENT_ID: {CLIENT_ID}")
 print(f"CLIENT_SECRET: {CLIENT_SECRET}")
+print(f"ADMIN_CHANNELS: {ADMIN_CHANNELS}")

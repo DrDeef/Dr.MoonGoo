@@ -11,7 +11,7 @@ from config import (
 )
 from commands import (
     handle_setup, handle_authenticate, handle_setadmin, handle_update_moondrills,
-    handle_structure, handle_checkgas, handle_structureassets, handle_debug
+    handle_structure, handle_checkgas, handle_structureassets, handle_debug, handle_showadmin
 )
 
 # Load tokens from file
@@ -36,7 +36,10 @@ async def on_message(message):
     if message.author == client.user:
         return
 
+    print(f"Message received in channel ID: {message.channel.id}")
+
     if message.content.startswith('!setup'):
+        print(f"Admin Channels: {ADMIN_CHANNELS}")
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_setup(message)
         else:
@@ -46,43 +49,49 @@ async def on_message(message):
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_authenticate(message)
         else:
-            await message.channel.send("You are not authorized to use this command.")
+            await handle_authenticate(message)
 
     elif message.content.startswith('!setadmin'):
-        if str(message.channel.id) in ADMIN_CHANNELS:
-            await handle_setadmin(message)
-        else:
-            await message.channel.send("You are not authorized to use this command.")
+        await handle_setadmin(message)
 
     elif message.content.startswith('!updatemoondrills'):
+        print(f"Admin Channels: {ADMIN_CHANNELS}")
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_update_moondrills(message)
         else:
             await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!structure'):
+        print(f"Admin Channels: {ADMIN_CHANNELS}")
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_structure(message)
         else:
             await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!checkgas'):
+        print(f"Admin Channels: {ADMIN_CHANNELS}")
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_checkgas(message)
         else:
             await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!structureassets'):
+        print(f"Admin Channels: {ADMIN_CHANNELS}")
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_structureassets(message)
         else:
             await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!debug'):
+        print(f"Admin Channels: {ADMIN_CHANNELS}")
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_debug(message)
         else:
             await message.channel.send("You are not authorized to use this command.")
+
+    elif message.content.startswith('!showadmin'):
+        await handle_showadmin(message)
+
 
 app = Flask(__name__)
 

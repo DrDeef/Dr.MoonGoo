@@ -1,4 +1,3 @@
-### backup 
 import discord
 import requests
 import secrets
@@ -50,9 +49,22 @@ async def load_structure_info_from_yaml():
 
 async def handle_setup(message):
     alert_channel_id = message.channel.id
+    
+    # Set current channel as an admin channel
+    admin_channel_id = str(message.channel.id)
+    if admin_channel_id not in ADMIN_CHANNELS:
+        ADMIN_CHANNELS.append(admin_channel_id)
+        config['admin_channels'] = ADMIN_CHANNELS
+    
+    # Save the configuration
     config['alert_channel_id'] = alert_channel_id
     save_config(config)
-    await message.channel.send(f"Alert channel set to {alert_channel_id}")
+    
+    await message.channel.send(f"Alert channel set to {alert_channel_id} and admin channel added.")
+    
+    # Call handle_update_moondrills
+    await handle_update_moondrills(message)
+
 
 async def handle_authenticate(message):
     state = secrets.token_urlsafe(16)
@@ -77,15 +89,22 @@ async def handle_authenticate(message):
 
 async def handle_setadmin(message):
     admin_channels = config.get('admin_channels', [])
-    if admin_channels and message.channel.id in admin_channels:
+    if message.channel.id in admin_channels:
         await message.channel.send("This channel is already an admin channel.")
         return
+    
     admin_channels.append(message.channel.id)
     config['admin_channels'] = admin_channels
     save_config(config)
-    await message.channel.send(f"Admin channel set to {message.channel.id}")
+    await message.channel.send(f"Admin channel added: {message.channel.id}\nCurrent admin channels: {admin_channels}")
+
+async def handle_showadmin(message):
+    admin_channels = config.get('admin_channels', [])
+    await message.channel.send(f"Current admin channels: {admin_channels}")
+
 
 async def handle_update_moondrills(message):
+    await message.channel.send("Updating moon drills...")
     moon_drill_ids = await get_moon_drills()
     if moon_drill_ids:
         config['metenox_moon_drill_ids'] = moon_drill_ids
