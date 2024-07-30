@@ -54,8 +54,13 @@ metenox_moon_drill_ids: []
 - **!setup**: Will Setup the Alerting Channel
 - **!setadmin**: Will Setup the Administrative Channel
 - **!updatemoondrills**: Update your Moondrill Structures
-- **!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with a timer
 - **!debug**: Debug Information about your ESI Token
+- **!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with a timer
+  
+## Example Bot Response
+<br>
+<img src="images/bot-response.png" alt="drawing" width="400"/>
+
 
 ## Presented by Regnum Astera
 
