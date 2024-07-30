@@ -47,6 +47,13 @@ eve_online_secret_key: YOUR_EVE_ONLINE_SECRET_KEY
 metenox_moon_drill_ids: []
 ```
 
+5. **First Startup Sequence**
+
+- !authenticate: NEEDED! Authenticate against the EvE ESI via SSO
+- !setup: Will run the base setup 
+- !setadmin: Set the current channel as Admin-Channel
+- 
+
 ## Commands
 
 - **!authenticate**: Authenticate the Bot against the EvE Online ESI API

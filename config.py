@@ -1,35 +1,47 @@
 import yaml
 import json
+import os
 
-# Load configuration from config.yaml
+# Global variables for configuration and tokens
+tokens = {}
+states = {}
+
 def load_config():
-    with open("config.yaml", "r") as config_file:
+    config_path = "config.yaml"
+    if not os.path.isfile(config_path):
+        raise FileNotFoundError(f"Configuration file '{config_path}' not found.")
+    
+    with open(config_path, "r") as config_file:
         return yaml.safe_load(config_file)
 
-# Save configuration to config.yaml
 def save_config(config):
-    # Convert all channel IDs to strings before saving
     config['admin_channels'] = [str(chan) for chan in config.get('admin_channels', [])]
+    
     with open("config.yaml", "w") as config_file:
-        yaml.dump(config, config_file)
+        yaml.dump(config, config_file, default_flow_style=False)
 
-# Load and save tokens
 def load_tokens():
     global tokens
-    try:
-        with open('tokens.json', 'r') as f:
+    tokens_path = 'tokens.json'
+    if os.path.isfile(tokens_path):
+        with open(tokens_path, 'r') as f:
             tokens = json.load(f)
-    except FileNotFoundError:
+    else:
         tokens = {}
 
 def save_tokens():
     with open('tokens.json', 'w') as f:
-        json.dump(tokens, f)
+        json.dump(tokens, f, indent=4)
 
 # Load the initial configuration and tokens
-config = load_config()
-load_tokens()
+try:
+    config = load_config()
+    load_tokens()
+except Exception as e:
+    print(f"Error loading configuration or tokens: {e}")
+    raise
 
+# Extract configuration settings
 DISCORD_BOT_TOKEN = config.get('discord_bot_token')
 CLIENT_ID = config.get('eve_online_client_id')
 CLIENT_SECRET = config.get('eve_online_secret_key')
@@ -40,10 +52,6 @@ ALERT_CHANNEL_ID = config.get('alert_channel_id')
 ALERT_THRESHOLD = config.get('alert_threshold', 500)
 MOON_DRILL_IDS = config.get('metenox_moon_drill_ids', [])
 
-tokens = tokens  # Ensure tokens are accessible
-states = {}  # Initialize empty states dictionary
-
-# Debug prints
 print(f"CLIENT_ID: {CLIENT_ID}")
 print(f"CLIENT_SECRET: {CLIENT_SECRET}")
 print(f"ADMIN_CHANNELS: {ADMIN_CHANNELS}")

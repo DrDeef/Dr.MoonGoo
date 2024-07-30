@@ -6,8 +6,10 @@ import logging
 import urllib.parse
 import json
 import yaml
+import asyncio
+import uuid
 from datetime import datetime, timedelta
-from config import config, save_config, tokens, states, CLIENT_ID, CLIENT_SECRET, CALLBACK_URL, CORPORATION_ID, MOON_DRILL_IDS, save_tokens, load_tokens
+from config import config, save_config, ADMIN_CHANNELS, tokens, states, CLIENT_ID, CLIENT_SECRET, CALLBACK_URL, CORPORATION_ID, MOON_DRILL_IDS, save_tokens, load_tokens
 
 async def save_structure_info_to_yaml(moon_drill_ids):
     access_token = await get_access_token()
@@ -48,44 +50,74 @@ async def load_structure_info_from_yaml():
 
 
 async def handle_setup(message):
-    alert_channel_id = message.channel.id
+    # Call authenticate and check if it was successful
+    if not await handle_authenticate(message):
+        await message.channel.send("Authentication failed. Setup aborted.")
+        return
+
+    # Setup completed
+    alert_channel_id = str(message.channel.id)
     
+    # Set the current channel as an admin channel
+    if alert_channel_id not in ADMIN_CHANNELS:
+        ADMIN_CHANNELS.append(alert_channel_id)
+        config['admin_channels'] = ADMIN_CHANNELS
+        save_config(config)
+    
+    await message.channel.send(f"Setup complete. Admin channel added.")
+
+
     # Set current channel as an admin channel
     admin_channel_id = str(message.channel.id)
     if admin_channel_id not in ADMIN_CHANNELS:
         ADMIN_CHANNELS.append(admin_channel_id)
         config['admin_channels'] = ADMIN_CHANNELS
-    
-    # Save the configuration
-    config['alert_channel_id'] = alert_channel_id
-    save_config(config)
-    
-    await message.channel.send(f"Alert channel set to {alert_channel_id} and admin channel added.")
-    
+        save_config(config)
+        await message.channel.send(f"Admin channel added: {admin_channel_id}")
+
     # Call handle_update_moondrills
     await handle_update_moondrills(message)
 
 
+async def handle_add_alert_channel(message):
+    alert_channel_id = message.channel.id
+    config['alert_channel_id'] = alert_channel_id
+    save_config(config)
+    await message.channel.send(f"Alert channel set to {alert_channel_id}")
+
+def generate_state():
+    return str(uuid.uuid4())
+
 async def handle_authenticate(message):
-    state = secrets.token_urlsafe(16)
+    # Check if the access token is present
+    if 'access_token' in tokens:
+        return True
+    
+    # Generate the state parameter
+    state = generate_state()
+
+    # Trigger the authentication process and provide a link
+    auth_url = (
+        f"https://login.eveonline.com/v2/oauth/authorize/?response_type=code"
+        f"&redirect_uri={CALLBACK_URL}&client_id={CLIENT_ID}"
+        f"&scope=esi-search.search_structures.v1+esi-universe.read_structures.v1"
+        f"+esi-assets.read_assets.v1+esi-corporations.read_structures.v1"
+        f"+esi-assets.read_corporation_assets.v1+publicData&state={state}"
+    )
+    
+    await message.channel.send(f"Please authenticate here: {auth_url}")
+
+    # Store the state to check later
     states[state] = True
-    scopes = [
-        'esi-search.search_structures.v1',
-        'esi-universe.read_structures.v1',
-        'esi-assets.read_assets.v1',
-        'esi-corporations.read_structures.v1',
-        'esi-assets.read_corporation_assets.v1',
-        'publicData'
-    ]
-    auth_params = {
-        'response_type': 'code',
-        'redirect_uri': CALLBACK_URL,
-        'client_id': CLIENT_ID,
-        'scope': ' '.join(scopes),
-        'state': state
-    }
-    auth_url = f"https://login.eveonline.com/v2/oauth/authorize/?{urllib.parse.urlencode(auth_params)}"
-    await message.channel.send(f'Please authenticate here: {auth_url}')
+
+    # Wait for the authentication to be completed
+    await wait_for_authentication()  # No argument needed here
+    
+    # Check if the token is now present
+    if 'access_token' in tokens:
+        return True
+    else:
+        return False
 
 async def handle_setadmin(message):
     admin_channels = config.get('admin_channels', [])
@@ -204,6 +236,9 @@ async def handle_checkgas(message):
     else:
         await message.channel.send(gas_info)
 
+async def wait_for_authentication():
+    while 'access_token' not in tokens:
+        await asyncio.sleep(1)  # Wait for 1 second before checking again
 
 
 async def handle_structureassets(message):
@@ -373,3 +408,4 @@ async def get_access_token():
         return response_data['access_token']
     
     return None
+

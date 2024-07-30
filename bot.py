@@ -3,11 +3,13 @@ import logging
 import threading
 from flask import Flask, request, render_template
 from discord.ext import commands, tasks
+from discord.ui import Button, Select, View
 import base64
 import requests
+import uuid
 from config import (
     DISCORD_BOT_TOKEN, ADMIN_CHANNELS, CALLBACK_URL, CLIENT_ID, CLIENT_SECRET,
-    states, tokens, save_tokens, load_tokens
+    states, tokens, save_tokens, load_tokens, save_config
 )
 from commands import (
     handle_setup, handle_authenticate, handle_setadmin, handle_update_moondrills,
@@ -31,6 +33,41 @@ async def on_ready():
     print(f'We have logged in as {client.user}')
     refresh_token_task.start()  # Start the token refresh task
 
+@client.command()
+async def setup(ctx):
+    await handle_setup(ctx.message)
+
+@client.command()
+async def addalertchannel(ctx):
+    await handle_add_alert_channel(ctx.message)
+
+@client.command()
+async def selectalertchannel(ctx):
+    # Get a list of all text channels in the server
+    channels = ctx.guild.text_channels
+    options = [discord.SelectOption(label=channel.name, value=str(channel.id)) for channel in channels]
+
+    select = Select(
+        placeholder="Choose a channel...",
+        options=options,
+        custom_id="select_alert_channel"
+    )
+    view = View()
+    view.add_item(select)
+
+    await ctx.send(
+        "Select an alert channel:",
+        view=view
+    )
+
+@client.event
+async def on_interaction(interaction: discord.Interaction):
+    if interaction.custom_id == "select_alert_channel":
+        selected_channel_id = interaction.data['values'][0]
+        config['alert_channel_id'] = selected_channel_id
+        save_config(config)
+        await interaction.response.send_message(f"Alert channel set to <#{selected_channel_id}>", ephemeral=True)
+
 @client.event
 async def on_message(message):
     if message.author == client.user:
@@ -39,11 +76,8 @@ async def on_message(message):
     print(f"Message received in channel ID: {message.channel.id}")
 
     if message.content.startswith('!setup'):
-        print(f"Admin Channels: {ADMIN_CHANNELS}")
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_setup(message)
-        else:
-            await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!authenticate'):
         if str(message.channel.id) in ADMIN_CHANNELS:
@@ -55,35 +89,30 @@ async def on_message(message):
         await handle_setadmin(message)
 
     elif message.content.startswith('!updatemoondrills'):
-        print(f"Admin Channels: {ADMIN_CHANNELS}")
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_update_moondrills(message)
         else:
             await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!structure'):
-        print(f"Admin Channels: {ADMIN_CHANNELS}")
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_structure(message)
         else:
             await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!checkgas'):
-        print(f"Admin Channels: {ADMIN_CHANNELS}")
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_checkgas(message)
         else:
             await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!structureassets'):
-        print(f"Admin Channels: {ADMIN_CHANNELS}")
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_structureassets(message)
         else:
             await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!debug'):
-        print(f"Admin Channels: {ADMIN_CHANNELS}")
         if str(message.channel.id) in ADMIN_CHANNELS:
             await handle_debug(message)
         else:
@@ -91,7 +120,6 @@ async def on_message(message):
 
     elif message.content.startswith('!showadmin'):
         await handle_showadmin(message)
-
 
 app = Flask(__name__)
 
@@ -126,6 +154,7 @@ def oauth_callback():
         return render_template('oauth_callback.html')
 
     return 'Failed to authenticate.'
+
 
 def run_flask():
     app.run(host='0.0.0.0', port=5005)
