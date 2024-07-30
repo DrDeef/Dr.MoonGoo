@@ -58,8 +58,7 @@ metenox_moon_drill_ids: []
 - **!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with a timer
   
 ## Example Bot Response
-<br>
-<img src="images/bot-response.png" alt="drawing" width="400"/>
+<img src="images/bot-response.png" alt="Bot Response" width="400"/>
 
 
 ## Presented by Regnum Astera
