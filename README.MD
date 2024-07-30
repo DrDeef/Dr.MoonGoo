@@ -14,8 +14,8 @@ A Discord bot that integrates with the EVE Online API to monitor moon drilling s
 1. **Clone the Repository:**
 
 ```sh
-   git clone https://github.com/yourusername/MrMoonBot.git
-   cd MrMoonBot
+   git clone https://github.com/DrDeef/Dr.MoonGoo.git
+   cd Dr.MoonGoo
 ```
 
 2. **Create and Activate Virtual Environment**
@@ -32,6 +32,9 @@ A Discord bot that integrates with the EVE Online API to monitor moon drilling s
 ```
 
 4. **configure the bot**
+
+Update the config.yaml to your needs:
+
 ```bash
 admin_channels: []
 alert_channel_id: null
@@ -43,6 +46,16 @@ eve_online_client_id: YOUR_EVE_ONLINE_CLIENT_ID
 eve_online_secret_key: YOUR_EVE_ONLINE_SECRET_KEY
 metenox_moon_drill_ids: []
 ```
+
+## Commands
+
+- **!authenticate**: Authenticate the Bot against the EvE Online ESI API
+  - You need e.g. Director Permissions ingame to check the structural assets
+- **!setup**: Will Setup the Alerting Channel
+- **!setadmin**: Will Setup the Administrative Channel
+- **!updatemoondrills**: Update your Moondrill Structures
+- **!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with a timer
+- **!debug**: Debug Information about your ESI Token
 
 ## Presented by Regnum Astera
 
