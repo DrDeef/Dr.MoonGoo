@@ -1,6 +1,9 @@
 # Dr.MoonGoo is Ready to Roll
+<img src="images/drMoonGoo.jpg" alt="Bot Response" width="250"/>
 
-A Discord bot that integrates with the EVE Online API to monitor moon drilling structures.
+
+## What is Dr. MoonGoo?
+> A Discord bot that integrates with the EVE Online API to monitor moon drilling structures.
 
 ## Features
 
