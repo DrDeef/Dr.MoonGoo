@@ -6,6 +6,8 @@ A Discord bot that integrates with the EVE Online API to monitor moon drilling s
 
 - **OAuth2 Authentication**: Securely authenticate with the EVE Online API.
 - **Structure Monitoring**: Track and check conditions of EVE Online structures.
+- **Goo-Alert**: Set a channel to check for Gas and Fuel levels every hour and alerts you if it falls short.
+  - An alert will be send 48 Hours and 24 Hours in regards of the depletion of the Gas / Fuel
 - **Gas Check**: Monitor gas levels in moon drilling structures and receive alerts if gas is low.
 - **Administrative Commands**: Manage alert channels and update moon drill IDs with ease.
 
@@ -58,7 +60,7 @@ Permission Integer
 - 517544037440
 ```
 
-4. **configure the bot**
+6. **configure the bot**
 
 Update the config.yaml to your needs:
 
@@ -74,11 +76,19 @@ eve_online_secret_key: YOUR_EVE_ONLINE_SECRET_KEY
 metenox_moon_drill_ids: []
 ```
 
-5. **First Startup Sequence**
+7. **First Startup Sequence**
 
 - !authenticate: NEEDED! Authenticate against the EvE ESI via SSO
-- !setup: Will run the base setup 
+- !setup: Will run the base setup
+- !updatemoondrills: Update your Moondrill structures
+- !gooalert: Set the current channel to be your alert channel
 
+## Magmatic Gas & Fuelblock Calculation
+
+Calculation is based on ingame values
+
+- Magmatic Gas: 1 Hour = 55 Units
+- Fuel Blocks: 1 Hour = 5 BLocks
 
 ## Commands
 
@@ -89,10 +99,16 @@ metenox_moon_drill_ids: []
 - **!updatemoondrills**: Update your Moondrill Structures
 - **!debug**: Debug information about your ESI-token
 - **!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with a timer
-  
+- **!gooalert**: Set the current channel as alerting channel and activate the scheduler.
+
 ## Example Bot Response
 <img src="images/bot-response.png" alt="Bot Response" width="400"/>
 
+## Example Bot Alert:
+
+**Structure Name**: Magmatic Gas is running **low!**<br>
+Magmatic Gas: ***440*** <br>
+Gas runs out in: **0 Days 8 Hours**
 
 ## Presented by Regnum Astera
 
