@@ -1,15 +1,26 @@
 import discord
 import requests
-import secrets
-import base64
 import logging
-import urllib.parse
-import json
 import yaml
-import asyncio
+import json
 import uuid
 from datetime import datetime, timedelta
-from config import config, save_config, ADMIN_CHANNELS, tokens, states, CLIENT_ID, CLIENT_SECRET, CALLBACK_URL, CORPORATION_ID, MOON_DRILL_IDS, save_tokens, load_tokens
+
+import config
+
+# Access config values using the get_config function
+ADMIN_CHANNELS = config.get_config('admin_channels', [])
+ADMIN_ROLE = config.get_config('admin_role', 'Admin')
+CLIENT_ID = config.get_config('eve_online_client_id', '')
+CLIENT_SECRET = config.get_config('eve_online_secret_key', '')
+CALLBACK_URL = config.get_config('eve_online_callback_url', '')
+CORPORATION_ID = config.get_config('corporation_id', '')
+MOON_DRILL_IDS = config.get_config('metenox_moon_drill_ids', [])
+
+
+# Use the updated methods and variables from config.py
+tokens = config.tokens
+states = config.states
 
 async def save_structure_info_to_yaml(moon_drill_ids):
     access_token = await get_access_token()
@@ -47,8 +58,6 @@ async def load_structure_info_from_yaml():
     except FileNotFoundError:
         structure_info = {}
 
-
-
 async def handle_setup(message):
     # Call authenticate and check if it was successful
     if not await handle_authenticate(message):
@@ -59,114 +68,126 @@ async def handle_setup(message):
     alert_channel_id = str(message.channel.id)
     
     # Set the current channel as an admin channel
-    if alert_channel_id not in ADMIN_CHANNELS:
-        ADMIN_CHANNELS.append(alert_channel_id)
-        config['admin_channels'] = ADMIN_CHANNELS
-        save_config(config)
+    if alert_channel_id not in config.get_config('admin_channels', []):
+        config.get_config['admin_channels'].append(alert_channel_id)
+        config.save_config()
     
     await message.channel.send(f"Setup complete. Admin channel added.")
 
-
-    # Set current channel as an admin channel
-    admin_channel_id = str(message.channel.id)
-    if admin_channel_id not in ADMIN_CHANNELS:
-        ADMIN_CHANNELS.append(admin_channel_id)
-        config['admin_channels'] = ADMIN_CHANNELS
-        save_config(config)
-        await message.channel.send(f"Admin channel added: {admin_channel_id}")
-
-    # Call handle_update_moondrills
-    await handle_update_moondrills(message)
-
-
-async def handle_add_alert_channel(message):
-    alert_channel_id = message.channel.id
-    config['alert_channel_id'] = alert_channel_id
-    save_config(config)
-    await message.channel.send(f"Alert channel set to {alert_channel_id}")
+    # Set current channel as an alert channel
+    config.get_config['alert_channel_id'] = alert_channel_id
+    config.save_config()
+    
+    await message.channel.send(f"Alert channel set to <#{alert_channel_id}>")
 
 def generate_state():
     return str(uuid.uuid4())
 
 async def handle_authenticate(message):
-    # Check if the access token is present
-    if 'access_token' in tokens:
-        return True
-    
-    # Generate the state parameter
     state = generate_state()
+    states[state] = True
 
-    # Trigger the authentication process and provide a link
     auth_url = (
         f"https://login.eveonline.com/v2/oauth/authorize/?response_type=code"
-        f"&redirect_uri={CALLBACK_URL}&client_id={CLIENT_ID}"
+        f"&redirect_uri={config.get_config('eve_online_callback_url', '')}&client_id={config.get_config('eve_online_client_id', '')}"
         f"&scope=esi-search.search_structures.v1+esi-universe.read_structures.v1"
         f"+esi-assets.read_assets.v1+esi-corporations.read_structures.v1"
         f"+esi-assets.read_corporation_assets.v1+publicData&state={state}"
     )
-    
-    await message.channel.send(f"Please authenticate here: {auth_url}")
 
-    # Store the state to check later
-    states[state] = True
+    await message.channel.send(f"Please [click here]({auth_url}) to authenticate.")
 
-    # Wait for the authentication to be completed
-    await wait_for_authentication()  # No argument needed here
-    
-    # Check if the token is now present
-    if 'access_token' in tokens:
-        return True
-    else:
-        return False
+    return True
 
 async def handle_setadmin(message):
-    admin_channels = config.get('admin_channels', [])
+    admin_channels = config.get_config('admin_channels', [])
     if message.channel.id in admin_channels:
         await message.channel.send("This channel is already an admin channel.")
         return
-    
+
     admin_channels.append(message.channel.id)
-    config['admin_channels'] = admin_channels
-    save_config(config)
+    config.get_config['admin_channels'] = admin_channels
+    config.save_config()
     await message.channel.send(f"Admin channel added: {message.channel.id}\nCurrent admin channels: {admin_channels}")
 
 async def handle_showadmin(message):
-    admin_channels = config.get('admin_channels', [])
+    admin_channels = config.get_config('admin_channels', [])
     await message.channel.send(f"Current admin channels: {admin_channels}")
-
 
 async def handle_update_moondrills(message):
     await message.channel.send("Updating moon drills...")
+    
     moon_drill_ids = await get_moon_drills()
+    
     if moon_drill_ids:
-        config['metenox_moon_drill_ids'] = moon_drill_ids
-        save_config(config)
-
-        # Save structure info to YAML
+        # Update the configuration with new moon drill IDs
+        config.set_config('metenox_moon_drill_ids', moon_drill_ids)
+        
+       # Save structure info to YAML
         await save_structure_info_to_yaml(moon_drill_ids)
 
         await message.channel.send(f"Updated moon drill IDs: {moon_drill_ids}")
     else:
         await message.channel.send("No moon drills found or an error occurred.")
 
+async def get_moon_drills():
+    access_token = await get_access_token()
+    if not access_token:
+        logging.error("No access token available. Cannot fetch moon drills.")
+        return []
+
+    headers = {'Authorization': f'Bearer {access_token}'}
+
+    # Fetch the corporation ID from the configuration
+    corporation_id = config.get_config('corporation_id', '')
+    
+    # Define the URL for the API request
+    url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/structures/?datasource=tranquility'
+    
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Raises an HTTPError for bad responses
+
+        data = response.json()
+
+        if 'error' in data:
+            logging.error(f"Error fetching moon drills: {data['error']}")
+            return []
+
+        moon_drill_ids = [
+            structure['structure_id']
+            for structure in data
+            if structure['type_id'] == 35835 or 'Automatic Moon Drilling' in [service['name'] for service in structure.get('services', [])]
+        ]
+
+        return moon_drill_ids
+
+    except requests.RequestException as e:
+        logging.error(f"Request error fetching moon drills: {e}")
+        return []
+    except Exception as e:
+        logging.error(f"Error fetching moon drills: {e}")
+        return []
 
 async def handle_structure(message):
-    response = await get_structure_info()
-    await message.channel.send(response)
+    structure_id = message.content.split()[1]
+    structure_info = await get_structure_info(structure_id)
+    await message.channel.send(structure_info)
+
+
 
 async def handle_checkgas(message):
     # Load structure info from YAML file
     await load_structure_info_from_yaml()
-    
+
     # Get all moon drill structure IDs from the configuration
-    moon_drill_ids = config.get('metenox_moon_drill_ids', [])
+    moon_drill_ids = config.get_config('metenox_moon_drill_ids', [])
 
     # Update moon drills and structure info if the list is empty
     if not moon_drill_ids:
         moon_drill_ids = await get_moon_drills()
         if moon_drill_ids:
-            config['metenox_moon_drill_ids'] = moon_drill_ids
-            save_config(config)
+            config.set_config('metenox_moon_drill_ids', moon_drill_ids)
             await save_structure_info_to_yaml(moon_drill_ids)
         else:
             await message.channel.send("No moon drills found or an error occurred.")
@@ -236,9 +257,28 @@ async def handle_checkgas(message):
     else:
         await message.channel.send(gas_info)
 
-async def wait_for_authentication():
-    while 'access_token' not in tokens:
-        await asyncio.sleep(1)  # Wait for 1 second before checking again
+
+async def get_all_structure_assets(structure_ids):
+    access_token = await get_access_token()
+    if not access_token:
+        return 'Failed to get access token'
+    
+    headers = {'Authorization': f'Bearer {access_token}'}
+    url = f'https://esi.evetech.net/latest/corporations/{CORPORATION_ID}/assets/?datasource=tranquility'
+    response = requests.get(url, headers=headers)
+    data = response.json()
+    
+    if 'error' in data:
+        logging.error(f"Error fetching structure assets: {data['error']}")
+        return f"Error fetching structure assets: {data['error']}"
+    
+    all_assets = {}
+    for structure_id in structure_ids:
+        assets = [asset for asset in data if asset.get('location_id') == structure_id and asset.get('location_flag') == 'StructureFuel']
+        if assets:
+            all_assets[structure_id] = assets
+    
+    return all_assets
 
 
 async def handle_structureassets(message):
@@ -311,101 +351,44 @@ async def get_structure_name(structure_id):
     
     return data.get('name', 'Unknown Structure')
 
+async def handle_help(ctx):
+    help_message = (
+        "Hello My Name is Dr. MoonGoo, here are some basic commands.\n\n"
+        "**Common commands:**\n"
+        "**!authenticate**: Authenticate the bot against the EvE Online ESI API\n"
+        "**!updatemoondrills**: Update your Moondrill Structures\n"
+        "**!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with the date/time when it runs out.\n"
+        "When setup with !GooAlert I will send you a message in a channel where you run the command if fuel runs out within the next 48 hours\n\n"
+        "Feel free to open a GitHub issue here: https://github.com/DrDeef/Dr.MoonGoo"
+    )
+    
+    await ctx.send(help_message)
+
 
 async def handle_debug(message):
+    await message.channel.send("Debug information: ...")
     access_token = tokens.get('access_token', 'No access token found')
     refresh_token = tokens.get('refresh_token', 'No refresh token found')
     await message.channel.send(f'Access Token: {access_token}\nRefresh Token: {refresh_token}')
 
-async def get_moon_drills():
+async def get_structure_info(structure_id):
     access_token = await get_access_token()
     if not access_token:
-        return []
-    headers = {'Authorization': f'Bearer {access_token}'}
-    url = f'https://esi.evetech.net/latest/corporations/{CORPORATION_ID}/structures/?datasource=tranquility'
-    response = requests.get(url, headers=headers)
-    data = response.json()
-    if 'error' in data:
-        logging.error(f"Error fetching moon drills: {data['error']}")
-        return []
-    return [structure['structure_id'] for structure in data if structure['type_id'] == 35835 or 'Automatic Moon Drilling' in [service['name'] for service in structure.get('services', [])]]
+        return "Failed to get access token."
 
-async def get_structure_info():
-    access_token = await get_access_token()
-    if not access_token:
-        return 'Failed to get access token'
     headers = {'Authorization': f'Bearer {access_token}'}
-    url = f'https://esi.evetech.net/latest/corporations/{CORPORATION_ID}/structures/?datasource=tranquility'
+    url = f'https://esi.evetech.net/latest/universe/structures/{structure_id}/'
     response = requests.get(url, headers=headers)
     data = response.json()
-    if 'error' in data:
-        logging.error(f"Error fetching structure info: {data['error']}")
-        return f"Error fetching structure info: {data['error']}"
-    return "\n".join([f"Structure ID: {structure['structure_id']}, Name: {structure['name']}" for structure in data])
 
-async def get_structure_assets(structure_id):
-    access_token = await get_access_token()
-    if not access_token:
-        return None
-    headers = {'Authorization': f'Bearer {access_token}'}
-    url = f'https://esi.evetech.net/latest/corporations/{CORPORATION_ID}/assets/?datasource=tranquility'
-    response = requests.get(url, headers=headers)
-    data = response.json()
     if 'error' in data:
-        logging.error(f"Error fetching structure assets: {data['error']}")
-        return None
-    # Filter assets to include only those with the given structure_id
-    return [asset for asset in data if asset.get('location_id') == structure_id and asset.get('location_flag') == 'StructureFuel']
+        return f"Error fetching structure info for ID {structure_id}: {data.get('error', 'Unknown error')}"
+    
+    structure_name = data.get('name', 'Unknown Structure')
+    return f"Structure ID: {structure_id}\nStructure Name: {structure_name}"
 
-async def get_all_structure_assets(structure_ids):
-    access_token = await get_access_token()
-    if not access_token:
-        return 'Failed to get access token'
-    
-    headers = {'Authorization': f'Bearer {access_token}'}
-    url = f'https://esi.evetech.net/latest/corporations/{CORPORATION_ID}/assets/?datasource=tranquility'
-    response = requests.get(url, headers=headers)
-    data = response.json()
-    
-    if 'error' in data:
-        logging.error(f"Error fetching structure assets: {data['error']}")
-        return f"Error fetching structure assets: {data['error']}"
-    
-    all_assets = {}
-    for structure_id in structure_ids:
-        assets = [asset for asset in data if asset.get('location_id') == structure_id and asset.get('location_flag') == 'StructureFuel']
-        if assets:
-            all_assets[structure_id] = assets
-    
-    return all_assets
 async def get_access_token():
-    # Check if we already have an access token
     if 'access_token' in tokens:
         return tokens['access_token']
 
-    # If no access token, try to refresh it
-    if 'refresh_token' not in tokens:
-        return None
-
-    data = {
-        'grant_type': 'refresh_token',
-        'refresh_token': tokens['refresh_token'],
-        'redirect_uri': CALLBACK_URL
-    }
-    auth_str = f"{CLIENT_ID}:{CLIENT_SECRET}"
-    b64_auth_str = base64.b64encode(auth_str.encode()).decode()
-    headers = {
-        'Authorization': f'Basic {b64_auth_str}', 
-        'Content-Type': 'application/x-www-form-urlencoded'
-    }
-    response = requests.post('https://login.eveonline.com/v2/oauth/token', data=data, headers=headers)
-    response_data = response.json()
-
-    if 'access_token' in response_data:
-        tokens['access_token'] = response_data['access_token']
-        tokens['refresh_token'] = response_data.get('refresh_token', tokens['refresh_token'])  # Update refresh token if available
-        save_tokens()  # Save tokens to a file
-        return response_data['access_token']
-    
     return None
-
