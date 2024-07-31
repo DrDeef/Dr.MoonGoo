@@ -1,4 +1,4 @@
-# Dr.MoonGoo is Ready to Roll
+# If you like Moons and Goo, i have a solution for you!
 <img src="images/drMoonGoo.jpg" alt="DrMoonGoo" width="250"/>
 
 
