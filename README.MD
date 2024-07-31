@@ -1,5 +1,5 @@
 # Dr.MoonGoo is Ready to Roll
-<img src="images/drMoonGoo.jpg" alt="Bot Response" width="250"/>
+<img src="images/drMoonGoo.jpg" alt="DrMoonGoo" width="250"/>
 
 
 ## What is Dr. MoonGoo?
