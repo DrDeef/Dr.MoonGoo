@@ -89,7 +89,7 @@ async def handle_authenticate(message):
 
     auth_url = (
         f"https://login.eveonline.com/v2/oauth/authorize/?response_type=code"
-        f"&redirect_uri={config.get_config('eve_online_callback_url', '')}&client_id={config.get_config('eve_online_client_id', '')}"
+        f"&redirect_uri={CALLBACK_URL}&client_id={CLIENT_ID}"
         f"&scope=esi-search.search_structures.v1+esi-universe.read_structures.v1"
         f"+esi-assets.read_assets.v1+esi-corporations.read_structures.v1"
         f"+esi-assets.read_corporation_assets.v1+publicData&state={state}"
@@ -122,7 +122,7 @@ async def handle_update_moondrills(message):
     if moon_drill_ids:
         # Update the configuration with new moon drill IDs
         config.set_config('metenox_moon_drill_ids', moon_drill_ids)
-        
+
        # Save structure info to YAML
         await save_structure_info_to_yaml(moon_drill_ids)
 
@@ -351,8 +351,8 @@ async def get_structure_name(structure_id):
     
     return data.get('name', 'Unknown Structure')
 
-async def handle_help(ctx):
-    help_message = (
+async def handle_help(message):
+    await message.channel.send(
         "Hello My Name is Dr. MoonGoo, here are some basic commands.\n\n"
         "**Common commands:**\n"
         "**!authenticate**: Authenticate the bot against the EvE Online ESI API\n"
@@ -361,8 +361,6 @@ async def handle_help(ctx):
         "When setup with !GooAlert I will send you a message in a channel where you run the command if fuel runs out within the next 48 hours\n\n"
         "Feel free to open a GitHub issue here: https://github.com/DrDeef/Dr.MoonGoo"
     )
-    
-    await ctx.send(help_message)
 
 
 async def handle_debug(message):
@@ -388,7 +386,42 @@ async def get_structure_info(structure_id):
     return f"Structure ID: {structure_id}\nStructure Name: {structure_name}"
 
 async def get_access_token():
-    if 'access_token' in tokens:
+    # Check if there's a valid token already
+    if 'access_token' in tokens and not is_token_expired(tokens['access_token']):
         return tokens['access_token']
-
+    
+    # Refresh the token if expired or missing
+    if 'refresh_token' in tokens:
+        return await refresh_access_token()
+    
+    # Handle the case where no refresh token is available
     return None
+
+def is_token_expired(token):
+    # Implement logic to check if the token is expired
+    # This is a placeholder; you should implement the actual check based on your setup
+    return False
+
+async def refresh_access_token():
+    # Implement your logic to refresh the access token using the refresh token
+    refresh_url = 'https://login.eveonline.com/v2/oauth/token'
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+    }
+    data = {
+        'grant_type': 'refresh_token',
+        'refresh_token': tokens['refresh_token'],
+        'client_id': CLIENT_ID,
+        'client_secret': CLIENT_SECRET
+    }
+    response = requests.post(refresh_url, headers=headers, data=data)
+    response_data = response.json()
+
+    if 'access_token' in response_data:
+        # Save new tokens
+        tokens['access_token'] = response_data['access_token']
+        tokens['refresh_token'] = response_data.get('refresh_token', tokens['refresh_token'])
+        return tokens['access_token']
+    else:
+        # Handle error
+        return None

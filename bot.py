@@ -4,15 +4,24 @@ import threading
 import base64
 import requests
 import uuid
+import asyncio
 from flask import Flask, request, render_template
 from discord.ext import commands, tasks
 from discord.ui import Select, View
 from discord.utils import get
+from scheduler import run_alert_scheduler
 import config
 from commands import (
     handle_setup, handle_authenticate, handle_setadmin, handle_update_moondrills,
     handle_structure, handle_checkgas, handle_structureassets, handle_debug, handle_showadmin, handle_help
 )
+
+# Define intents
+intents = discord.Intents.default()
+intents.message_content = True  # Enable the message content intent
+
+# Initialize the bot with the defined intents
+bot = commands.Bot(command_prefix='!', intents=intents)
 
 # Load tokens from file
 config.load_tokens()
@@ -20,15 +29,11 @@ config.load_tokens()
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
-# Initialize Discord bot
-intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
-
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user.name} ({bot.user.id})')
     print('------')
+    asyncio.create_task(run_alert_scheduler(bot))
 
 async def is_admin(ctx):
     admin_role = get(ctx.guild.roles, name=config.config.get('admin_role', 'Admin'))
@@ -54,12 +59,10 @@ async def setup(ctx):
 
 @bot.command()
 async def addalertchannel(ctx):
-    # Implement this command if necessary
     await ctx.send("`!addalertchannel` is not implemented yet.")
 
 @bot.command()
 async def selectalertchannel(ctx):
-    # Get a list of all text channels in the server
     channels = ctx.guild.text_channels
     options = [discord.SelectOption(label=channel.name, value=str(channel.id)) for channel in channels]
 
@@ -84,9 +87,17 @@ async def on_interaction(interaction: discord.Interaction):
         config.save_config()
         await interaction.response.send_message(f"Alert channel set to <#{selected_channel_id}>", ephemeral=True)
 
-@bot.command(name='goohelp')
-async def help_command(ctx):
-    await handle_help(ctx.message)
+@bot.command()
+async def gooalert(ctx):
+    # Set the alert channel in the configuration
+    alert_channel_id = str(ctx.channel.id)
+    config.set_config('alert_channel_id', alert_channel_id)
+    
+    # Notify that the alert channel has been set
+    await ctx.send(f"Alert channel set to <#{alert_channel_id}>")
+
+    # Start the background scheduler
+    asyncio.create_task(run_alert_scheduler(bot))  # Pass the bot instance
 
 @bot.event
 async def on_message(message):
@@ -101,6 +112,9 @@ async def on_message(message):
 
     elif message.content.startswith('!authenticate'):
         await handle_authenticate(message)
+
+    elif message.content.startswith('!goohelp'):
+        await handle_help(message)
 
     elif message.content.startswith('!setadmin'):
         if await is_admin(message):
@@ -143,6 +157,9 @@ async def on_message(message):
             await handle_showadmin(message)
         else:
             await message.channel.send("You are not authorized to use this command.")
+
+    # Ensure to process commands
+    await bot.process_commands(message)
 
 app = Flask(__name__)
 

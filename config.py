@@ -5,13 +5,15 @@ import json
 config = {}
 tokens = {}
 states = {}
+config_file = 'config.yaml'
 
 def load_config():
     global config
     try:
-        with open('config.yaml', 'r') as file:
+        with open(config_file, 'r') as file:
             config = yaml.safe_load(file) or {}
     except FileNotFoundError:
+        # Default configuration if file does not exist
         config = {
             'admin_channels': [],
             'alert_channel_id': None,
@@ -26,7 +28,7 @@ def load_config():
         }
 
 def save_config():
-    with open('config.yaml', 'w') as file:
+    with open(config_file, 'w') as file:
         yaml.safe_dump(config, file)
 
 def load_tokens():
@@ -48,6 +50,6 @@ def set_config(key, value):
     config[key] = value
     save_config()
 
-# Load configurations when the module is imported
+# Load configurations and tokens when the module is imported
 load_config()
 load_tokens()
