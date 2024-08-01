@@ -66,26 +66,46 @@ async def load_structure_info_from_yaml():
         structure_info = {}
 
 async def handle_setup(message):
-    # Call authenticate and check if it was successful
-    #if not await handle_authenticate(message):
-    #    await message.channel.send("Authentication failed. Setup aborted.")
-    #    return
-
     # Setup completed
     alert_channel_id = str(message.channel.id)
     
     # Set the current channel as an admin channel
     if alert_channel_id not in config.get_config('admin_channels', []):
-        config.get_config['admin_channels'].append(alert_channel_id)
+        admin_channels = config.get_config('admin_channels', [])
+        admin_channels.append(alert_channel_id)
+        config.set_config('admin_channels', admin_channels)
         config.save_config()
-    
+
     await message.channel.send(f"Setup complete. Admin channel added.")
+    
+    # Call the update_moondrills function
+    await handle_update_moondrills(message)
+    
+    # Call the handle_checkgas function
+    await handle_checkgas(message)
+    
+    # Call the handle_fetch_moon_goo_assets function
+    await handle_fetch_moon_goo_assets(message)
+
+# Example placeholders for the functions called in handle_setup
+async def handle_update_moondrills(message):
+    # Placeholder function for handle_update_moondrills
+    await message.channel.send("Updating moon drills...")
+
+async def handle_checkgas(message):
+    # Placeholder function for handle_checkgas
+    await message.channel.send("Checking gas...")
+
+async def handle_fetch_moon_goo_assets(message):
+    # Placeholder function for handle_fetch_moon_goo_assets
+    await message.channel.send("Fetching moon goo assets...")
+
 
     # Set current channel as an alert channel
-    config.get_config['alert_channel_id'] = alert_channel_id
-    config.save_config()
+    ##config.get_config['alert_channel_id'] = alert_channel_id
+    ##config.save_config()
     
-    await message.channel.send(f"Alert channel set to <#{alert_channel_id}>")
+    ##await message.channel.send(f"Alert channel set to <#{alert_channel_id}>")
 
 async def handle_add_alert_channel(ctx):
     # Retrieve the current channel ID

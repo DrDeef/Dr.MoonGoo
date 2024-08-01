@@ -16,6 +16,7 @@
 - **Goo-Alert**: Set a channel to check for Gas and Fuel levels every hour and alerts you if it falls short.
   - An alert will be send 48 Hours and 24 Hours in regards of the depletion of the Gas / Fuel
 - **Gas Check**: Monitor gas levels in moon drilling structures and receive alerts if gas is low.
+- **Goo Check**: Print out the amount of materials the drill has in its 'assets'.
 - **Administrative Commands**: Manage alert channels and update moon drill IDs with ease.
 
 ## Setup
@@ -101,7 +102,8 @@ metenox_moon_drill_ids: []
 7. **First Startup Sequence**
 
 - !authenticate: NEEDED! Authenticate against the EvE ESI via SSO
-- !setup: Will run the base setup
+- !getMeGoo: Will run the base setup.
+  - Will update your Moondrill structures, Gas & Fuel Levels, and the Goo Assets.
 - !updatemoondrills: Update your Moondrill structures
 - !gooalert: Set the current channel to be your alert channel
 
@@ -116,15 +118,23 @@ Calculation is based on ingame values
 
 - **!authenticate**: Authenticate the bot against the EvE Online ESI API
   - You need e.g. Director permissions ingame to check the structural assets
-- **!setup**: Will Setup basic parameters
+- **!getMeGoo**: Will Setup basic parameters
 - **!setadmin**: Will setup the administrative channel
 - **!updatemoondrills**: Update your Moondrill Structures
 - **!debug**: Debug information about your ESI-token
-- **!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with a timer
+- **!checkGoo**: Print out every Asset within your Metenox Moon Drills.
+- **!checkGas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with a timer
 - **!gooalert**: Set the current channel as alerting channel and activate the scheduler.
 
 ## Example Bot Response
+
+> !checkGas
+
 <img src="images/bot-response.png" alt="Bot Response" width="400"/>
+
+> !checkGoo
+
+<img src="images/moonmaterials.png" alt="Bot Response" width="400"/>
 
 ## Example Bot Alert:
 
