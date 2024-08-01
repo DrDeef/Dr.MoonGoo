@@ -552,7 +552,6 @@ async def load_moon_goo_from_json():
     except FileNotFoundError:
         return {}
     
-## go here dave!
 
 async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
     moon_goo_items = get_moon_goo_items()

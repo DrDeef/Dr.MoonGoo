@@ -144,23 +144,6 @@ async def checkGoo(ctx):
     # Call the function to update the YAML file, passing the ctx argument
     await handle_fetch_moon_goo_assets(ctx)
 
-#@bot.command()
-#async def checkGoo(ctx):
-#    """Updates the moon goo items in the metenox_goo.yaml file."""
-#    
-#    # Retrieve the alert channel ID from the configuration
-#    alert_channel_id = config.get_config('alert_channel_id')
-#    
-#    # Check if the command is being run in the alert channel
-#    if str(ctx.channel.id) == alert_channel_id:
-#        await ctx.send("Collecting your MoonGoo information. This may take a moment...")
-#        
-#        # Call the function to update the YAML file, passing the ctx argument
-#        await handle_fetch_moon_goo_assets(ctx)
-#    else:
-#        await ctx.send(f"This command can only be run in the designated alert channel: <#{alert_channel_id}>")
-
-
 
 @bot.command()
 async def checkGas(ctx):
@@ -177,8 +160,6 @@ async def getMeGoo(ctx):
     await handle_setup(ctx)
 
 
-@bot.event
-async def on_message(message):
     if message.author == bot.user:
         return
 
@@ -194,20 +175,8 @@ async def on_message(message):
         else:
             await message.channel.send("You are not authorized to use this command.")
 
-    #elif message.content.startswith('!checkgas'):
-    #    if await is_admin(message):
-    #        await handle_checkgas(message)
-    #    else:
-    #        await message.channel.send("You are not authorized to use this command.")
-
     elif message.content.startswith('!structureassets'):
             await handle_structureassets(message)
-
-    #elif message.content.startswith('!debug'):
-    #    if await is_admin(message):
-    #        await handle_debug(message)
-    #    else:
-    #        await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!showadmin'):
         if await is_admin(message):
@@ -261,7 +230,7 @@ def oauth_callback():
 def run_flask():
     app.run(host='127.0.0.1', port=5005, ssl_context=None)
 
-@tasks.loop(minutes=5)
+@tasks.loop(minutes=10)
 async def refresh_token_task():
     await refresh_token()
 
