@@ -112,7 +112,7 @@ metenox_moon_drill_ids: []
 Calculation is based on ingame values
 
 - Magmatic Gas: 1 Hour = 55 Units
-- Fuel Blocks: 1 Hour = 5 BLocks
+- Fuel Blocks: 1 Hour = 5 Blocks
 
 ## Commands
 
