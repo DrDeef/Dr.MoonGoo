@@ -402,21 +402,42 @@ async def get_structure_info(structure_id):
     return f"Structure ID: {structure_id}\nStructure Name: {structure_name}"
 
 async def get_access_token():
+    tokens = load_tokens()
+    
     # Check if there's a valid token already
-    if 'access_token' in tokens and not is_token_expired(tokens['access_token']):
+    if 'access_token' in tokens and not is_token_expired():
         return tokens['access_token']
     
     # Refresh the token if expired or missing
     if 'refresh_token' in tokens:
-        return await refresh_access_token()
+        new_tokens = await refresh_access_token()
+        # Save the new tokens
+        with open('tokens.json', 'w') as file:
+            json.dump(new_tokens, file, indent=4)
+        return new_tokens['access_token']
     
     # Handle the case where no refresh token is available
     return None
 
-def is_token_expired(token):
-    # Implement logic to check if the token is expired
-    # This is a placeholder; you should implement the actual check based on your setup
-    return False
+def is_token_expired():
+    """Check if the stored token is expired."""
+    tokens = load_tokens()
+    if not tokens:
+        # No tokens found
+        return True
+
+    created_at_str = tokens.get('created_at')
+    expires_in = tokens.get('expires_in')
+
+    if not created_at_str or expires_in is None:
+        # Missing token details
+        return True
+
+    created_at = datetime.fromisoformat(created_at_str)
+    expiration_time = created_at + timedelta(seconds=expires_in)
+
+    # Compare the current time with the expiration time
+    return datetime.utcnow() > expiration_time
 
 async def refresh_access_token():
     # Implement your logic to refresh the access token using the refresh token
