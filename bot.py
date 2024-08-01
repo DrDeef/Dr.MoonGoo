@@ -196,7 +196,7 @@ def oauth_callback():
     return 'Failed to authenticate.'
 
 def run_flask():
-    app.run(host='0.0.0.0', port=5005)
+    app.run(host='127.0.0.1', port=5005, ssl_context=None)
 
 @tasks.loop(minutes=5)
 async def refresh_token_task():
