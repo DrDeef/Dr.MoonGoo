@@ -16,6 +16,21 @@
 
 ## Setup
 
+### Dockerfile
+
+There are two ways, you can either use one of the following images:
+https://hub.docker.com/r/drdeef/drmoongoo/tags
+
+Or you build your Dockerimage yourself with the `Dockerfile`
+
+Run the Container with:
+
+```bash
+docker run -d -p 5005:5005 -v /path/to/local/config.yaml:/usr/src/app/config.yaml drdeef/drmoongoo:0.0.1
+```
+
+### Without Docker
+
 1. **Clone the Repository:**
 
 ```sh
