@@ -6,6 +6,7 @@ import requests
 import uuid
 import asyncio
 import datetime
+from urllib.parse import quote
 from flask import Flask, request, render_template
 from discord.ext import commands, tasks
 from discord.ui import Select, View
@@ -239,33 +240,40 @@ async def refresh_token():
         logging.error('No refresh token found. Cannot refresh access token.')
         return
 
+    refresh_token = quote(config.tokens['refresh_token'])  # URL-encode the refresh token
     data = {
         'grant_type': 'refresh_token',
-        'refresh_token': config.tokens['refresh_token'],
-        'redirect_uri': config.config.get('eve_online_callback_url', '')
+        'refresh_token': refresh_token
     }
-    auth_str = f"{config.config.get('eve_online_client_id', '')}:{config.config.get('eve_online_secret_key', '')}"
+    
+    client_id = config.config.get('eve_online_client_id', '')
+    client_secret = config.config.get('eve_online_secret_key', '')
+    auth_str = f"{client_id}:{client_secret}"
     b64_auth_str = base64.b64encode(auth_str.encode()).decode()
+    
     headers = {
-        'Authorization': f'Basic {b64_auth_str}', 
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Authorization': f'Basic {b64_auth_str}',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Host': 'login.eveonline.com'
     }
-    response = requests.post('https://login.eveonline.com/v2/oauth/token', data=data, headers=headers)
-    response_data = response.json()
 
-    if 'access_token' in response_data:
-        config.tokens['access_token'] = response_data['access_token']
-        config.tokens['refresh_token'] = response_data.get('refresh_token', config.tokens['refresh_token'])  # Update refresh token if available
-        config.save_tokens()  # Save tokens to a file
-        logging.info('Access token refreshed successfully.')
-    else:
-        logging.error('Failed to refresh access token.')
-
-if __name__ == "__main__":
     try:
-        flask_thread = threading.Thread(target=run_flask)
-        flask_thread.start()
+        response = requests.post('https://login.eveonline.com/v2/oauth/token', data=data, headers=headers)
+        response.raise_for_status()  # Raise an exception for HTTP errors
+        
+        response_data = response.json()
+        
+        # Log the entire response for debugging
+        logging.debug(f"Response data: {response_data}")
+        
+        if 'access_token' in response_data:
+            config.tokens['access_token'] = response_data['access_token']
+            config.tokens['refresh_token'] = response_data.get('refresh_token', config.tokens['refresh_token'])  # Update refresh token if available
+            config.save_tokens()  # Save tokens to a file
+            logging.info('Access token refreshed successfully.')
+        else:
+            error_description = response_data.get('error_description', 'No error description provided.')
+            logging.error(f'Failed to refresh access token: {error_description}')
 
-        bot.run(config.config.get('discord_bot_token', ''))
-    except discord.errors.LoginFailure:
-        print("Invalid Discord - Bot token. Please check your configuration.")
+    except requests.exceptions.RequestException as e:
+        logging.error(f'Error during token refresh: {e}')
