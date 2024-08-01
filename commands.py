@@ -4,9 +4,11 @@ import logging
 import yaml
 import json
 import uuid
-from datetime import datetime, timedelta
-
 import config
+from config import load_tokens, save_tokens
+from datetime import datetime, timedelta
+from collections import defaultdict
+
 
 # Access config values using the get_config function
 ADMIN_CHANNELS = config.get_config('admin_channels', [])
@@ -374,10 +376,14 @@ async def handle_help(message):
 
 
 async def handle_debug(message):
+    token_data = load_tokens()  # This needs to be a function in your code
+
+    access_token = token_data.get('access_token', 'No access token found')
+    refresh_token = token_data.get('refresh_token', 'No refresh token found')
+
     await message.channel.send("Debug information: ...")
-    access_token = tokens.get('access_token', 'No access token found')
-    refresh_token = tokens.get('refresh_token', 'No refresh token found')
     await message.channel.send(f'Access Token: {access_token}\nRefresh Token: {refresh_token}')
+
 
 async def get_structure_info(structure_id):
     access_token = await get_access_token()
@@ -435,3 +441,101 @@ async def refresh_access_token():
     else:
         # Handle error
         return None
+
+## new moongoo "feature"
+
+async def save_moon_goo_to_yaml(moon_drill_assets):
+    try:
+        with open('metenox_goo.yaml', 'w') as file:
+            yaml.dump(moon_drill_assets, file)
+    except IOError as e:
+        logging.error(f"Error saving moon goo info to YAML file: {e}")
+
+async def load_moon_goo_from_yaml():
+    try:
+        with open('metenox_goo.yaml', 'r') as file:
+            return yaml.safe_load(file) or {}
+    except FileNotFoundError:
+        return {}
+
+async def get_moon_drill_assets():
+    access_token = await get_access_token()
+    if not access_token:
+        logging.error("No access token available. Cannot fetch moon drill assets.")
+        return {}
+
+    headers = {'Authorization': f'Bearer {access_token}'}
+    corporation_id = config.get_config('corporation_id', '')
+    url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/assets/?datasource=tranquility'
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        return data
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Request error: {e}")
+        return {}
+
+async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
+    await ctx.send("Fetching moon goo assets...")
+
+    moon_drill_ids = config.get_config('metenox_moon_drill_ids', [])
+    if not moon_drill_ids:
+        moon_drill_ids = await get_moon_drills()
+        if not moon_drill_ids:
+            await ctx.send("No moon drills found or an error occurred.")
+            return
+        config.set_config('metenox_moon_drill_ids', moon_drill_ids)
+
+    all_assets_info = await get_all_structure_assets(moon_drill_ids)
+    if isinstance(all_assets_info, str):
+        await ctx.send(all_assets_info)
+        return
+
+    moon_goo_items = moongoo.get_moon_goo_items()
+    moon_drill_assets = defaultdict(dict)
+
+    for structure_id, assets in all_assets_info.items():
+        for asset in assets:
+            type_id = asset.get('type_id')
+            quantity = asset.get('quantity', 0)
+            if type_id in moon_goo_items:
+                moon_drill_assets[structure_id][moon_goo_items[type_id]] = moon_drill_assets[structure_id].get(moon_goo_items[type_id], 0) + quantity
+
+    await save_moon_goo_to_yaml(moon_drill_assets)
+
+    if structure_name:
+        await show_moon_goo_for_structure(ctx, structure_name, moon_drill_assets)
+    else:
+        await show_all_moon_goo(ctx, moon_drill_assets)
+
+async def show_moon_goo_for_structure(ctx, structure_name, moon_drill_assets):
+    structure_info = await load_structure_info_from_yaml()
+    for structure_id, assets in moon_drill_assets.items():
+        if structure_info.get(structure_id) == structure_name:
+            await ctx.send(f"**{structure_name}**:")
+            for item, quantity in assets.items():
+                await ctx.send(f"**{item}**: {quantity}")
+            return
+
+    await ctx.send(f"No data found for structure: {structure_name}")
+
+async def show_all_moon_goo(ctx, moon_drill_assets):
+    structure_info = await load_structure_info_from_yaml()
+    response = ""
+
+    for structure_id, assets in moon_drill_assets.items():
+        structure_name = structure_info.get(structure_id, 'Unknown Structure')
+        response += f"**{structure_name}**:\n"
+        for item, quantity in assets.items():
+            response += f"**{item}**: {quantity}\n"
+        response += "\n"
+
+    # Send message in chunks if necessary
+    if len(response) > 2000:
+        chunks = [response[i:i + 2000] for i in range(0, len(response), 2000)]
+        for chunk in chunks:
+            await ctx.send(chunk)
+    else:
+        await ctx.send(response)

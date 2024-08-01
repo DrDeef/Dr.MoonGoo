@@ -5,16 +5,23 @@ import base64
 import requests
 import uuid
 import asyncio
+import datetime
 from flask import Flask, request, render_template
 from discord.ext import commands, tasks
 from discord.ui import Select, View
 from discord.utils import get
 from scheduler import run_alert_scheduler
 import config
+from config import get_config
 from commands import (
     handle_setup, handle_authenticate, handle_setadmin, handle_update_moondrills,
     handle_structure, handle_checkgas, handle_structureassets, handle_debug, handle_showadmin, handle_help, handle_add_alert_channel, get_moon_drills
 )
+
+# Fetch the configuration values
+CALLBACK_URL = get_config('eve_online_callback_url')
+CLIENT_ID = get_config('eve_online_client_id')
+CLIENT_SECRET = get_config('eve_online_secret_key')
 
 # Define intents
 intents = discord.Intents.default()
@@ -78,6 +85,13 @@ async def selectalertchannel(ctx):
         "Select an alert channel:",
         view=view
     )
+
+@bot.command()
+async def fetchmoongoo(ctx, *, structure_name: str = None):
+    if not await is_admin(ctx):
+        await ctx.send("You are not authorized to use this command.")
+        return
+    await handle_fetch_moon_goo_assets(ctx, structure_name)
 
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
@@ -187,35 +201,41 @@ app = Flask(__name__)
 
 @app.route('/oauth-callback')
 def oauth_callback():
+    # Extract the code from the query parameters
     code = request.args.get('code')
     state = request.args.get('state')
 
-    if not state or state not in config.states:
-        return 'Invalid state parameter.'
+    if not code or not state:
+        return "Missing code or state parameter", 400
 
-    del config.states[state]  # Remove state once used
-
+    # Exchange the code for tokens
+    token_url = 'https://login.eveonline.com/v2/oauth/token'
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+    }
     data = {
         'grant_type': 'authorization_code',
         'code': code,
-        'redirect_uri': config.config.get('eve_online_callback_url', '')
+        'redirect_uri': CALLBACK_URL,
+        'client_id': CLIENT_ID,
+        'client_secret': CLIENT_SECRET
     }
-    auth_str = f"{config.config.get('eve_online_client_id', '')}:{config.config.get('eve_online_secret_key', '')}"
-    b64_auth_str = base64.b64encode(auth_str.encode()).decode()
-    headers = {
-        'Authorization': f'Basic {b64_auth_str}', 
-        'Content-Type': 'application/x-www-form-urlencoded'
-    }
-    response = requests.post('https://login.eveonline.com/v2/oauth/token', data=data, headers=headers)
+    response = requests.post(token_url, headers=headers, data=data)
     response_data = response.json()
 
-    if 'access_token' in response_data:
-        config.tokens['access_token'] = response_data['access_token']
-        config.tokens['refresh_token'] = response_data.get('refresh_token', config.tokens.get('refresh_token'))
-        config.save_tokens()
-        return render_template('oauth_callback.html')
+    if 'access_token' not in response_data:
+        return f"Error obtaining tokens: {response_data.get('error_description', 'Unknown error')}", 500
 
-    return 'Failed to authenticate.'
+    # Extract tokens and expiration information
+    access_token = response_data['access_token']
+    refresh_token = response_data.get('refresh_token', None)
+    expires_in = response_data.get('expires_in', None)
+
+    # Save the tokens
+    config.save_tokens(access_token, refresh_token, expires_in)
+
+    return render_template('oauth_callback.html')
+
 
 def run_flask():
     app.run(host='127.0.0.1', port=5005, ssl_context=None)
