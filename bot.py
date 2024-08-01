@@ -15,7 +15,7 @@ import config
 from config import get_config
 from commands import (
     handle_setup, handle_authenticate, handle_setadmin, handle_update_moondrills,
-    handle_structure, handle_checkgas, handle_structureassets, handle_debug, handle_showadmin, handle_help, handle_add_alert_channel, get_moon_drills
+    handle_structure, handle_checkgas, handle_structureassets, handle_debug, handle_showadmin, handle_help, handle_add_alert_channel, handle_fetch_moon_goo_assets, handle_fetch_moon_goo_assets
 )
 
 # Fetch the configuration values
@@ -64,6 +64,7 @@ async def showadmin(ctx):
 async def setup(ctx):
     await handle_setup(ctx.message)
 
+
 @bot.command()
 async def addalertchannel(ctx):
     await handle_add_alert_channel(ctx)  # Call the handler function
@@ -87,10 +88,7 @@ async def selectalertchannel(ctx):
     )
 
 @bot.command()
-async def fetchmoongoo(ctx, *, structure_name: str = None):
-    if not await is_admin(ctx):
-        await ctx.send("You are not authorized to use this command.")
-        return
+async def listmoongoo(ctx, *, structure_name: str = None):
     await handle_fetch_moon_goo_assets(ctx, structure_name)
 
 @bot.event
@@ -135,6 +133,16 @@ async def updatemoondrills(ctx):
         return
     await handle_update_moondrills(ctx)
 
+@bot.command()
+async def update_moon_goo(ctx):
+    """Updates the moon goo items in the metenox_goo.yaml file."""
+    await ctx.send("Updating moon goo items. This may take a moment...")
+    
+    # Call the function to update the YAML file, passing the ctx argument
+    await handle_fetch_moon_goo_assets(ctx)
+    
+    await ctx.send("Moon goo items updated successfully!")
+
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -146,23 +154,9 @@ async def on_message(message):
         if str(message.channel.id) in config.config.get('admin_channels', []):
             await handle_setup(message)
 
-    #elif message.content.startswith('!authenticate'):
-    #    await handle_authenticate(message)
-
     elif message.content.startswith('!goohelp'):
         await handle_help(message)
 
-    #elif message.content.startswith('!setadmin'):
-    #    if await is_admin(message):
-    #        await handle_setadmin(message)
-    #    else:
-    #        await message.channel.send("You are not authorized to use this command.")
-
-    #elif message.content.startswith('!updatemoondrills'):
-    #    if await is_admin(message):
-    #        await handle_update_moondrills(message)
-    #    else:
-    #        await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!structure'):
         if await is_admin(message):
@@ -177,10 +171,7 @@ async def on_message(message):
             await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!structureassets'):
-        if await is_admin(message):
             await handle_structureassets(message)
-        else:
-            await message.channel.send("You are not authorized to use this command.")
 
     #elif message.content.startswith('!debug'):
     #    if await is_admin(message):
@@ -278,4 +269,4 @@ if __name__ == "__main__":
 
         bot.run(config.config.get('discord_bot_token', ''))
     except discord.errors.LoginFailure:
-        print("Invalid token. Please check your configuration.")
+        print("Invalid Discord - Bot token. Please check your configuration.")

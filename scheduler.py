@@ -93,4 +93,3 @@ async def get_all_structure_assets(structure_ids):
 
 async def get_access_token():
     return config.tokens.get('access_token')
-
