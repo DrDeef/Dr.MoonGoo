@@ -13,7 +13,7 @@ from scheduler import run_alert_scheduler
 import config
 from commands import (
     handle_setup, handle_authenticate, handle_setadmin, handle_update_moondrills,
-    handle_structure, handle_checkgas, handle_structureassets, handle_debug, handle_showadmin, handle_help
+    handle_structure, handle_checkgas, handle_structureassets, handle_debug, handle_showadmin, handle_help, handle_add_alert_channel, get_moon_drills
 )
 
 # Define intents
@@ -40,7 +40,7 @@ async def is_admin(ctx):
     return admin_role in ctx.author.roles
 
 @bot.command()
-async def setadmin(ctx):
+async def setadminchannel(ctx):
     if not await is_admin(ctx):
         await ctx.send("You are not authorized to use this command.")
         return
@@ -59,7 +59,7 @@ async def setup(ctx):
 
 @bot.command()
 async def addalertchannel(ctx):
-    await ctx.send("`!addalertchannel` is not implemented yet.")
+    await handle_add_alert_channel(ctx)  # Call the handler function
 
 @bot.command()
 async def selectalertchannel(ctx):
@@ -99,6 +99,28 @@ async def gooalert(ctx):
     # Start the background scheduler
     asyncio.create_task(run_alert_scheduler(bot))  # Pass the bot instance
 
+@bot.command()
+async def debug(ctx):
+    if not await is_admin(ctx):
+        await ctx.send("You are not authorized to use this command.")
+        return
+    await handle_debug(ctx.message)
+
+@bot.command()
+async def authenticate(ctx):
+    await handle_authenticate(ctx)
+
+@bot.command()
+async def setadmin(ctx):
+    await handle_setadmin(ctx)
+
+@bot.command()
+async def updatemoondrills(ctx):
+    if not await is_admin(ctx):
+        await ctx.send("You are not authorized to use this command.")
+        return
+    await handle_update_moondrills(ctx)
+
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -110,23 +132,23 @@ async def on_message(message):
         if str(message.channel.id) in config.config.get('admin_channels', []):
             await handle_setup(message)
 
-    elif message.content.startswith('!authenticate'):
-        await handle_authenticate(message)
+    #elif message.content.startswith('!authenticate'):
+    #    await handle_authenticate(message)
 
     elif message.content.startswith('!goohelp'):
         await handle_help(message)
 
-    elif message.content.startswith('!setadmin'):
-        if await is_admin(message):
-            await handle_setadmin(message)
-        else:
-            await message.channel.send("You are not authorized to use this command.")
+    #elif message.content.startswith('!setadmin'):
+    #    if await is_admin(message):
+    #        await handle_setadmin(message)
+    #    else:
+    #        await message.channel.send("You are not authorized to use this command.")
 
-    elif message.content.startswith('!updatemoondrills'):
-        if await is_admin(message):
-            await handle_update_moondrills(message)
-        else:
-            await message.channel.send("You are not authorized to use this command.")
+    #elif message.content.startswith('!updatemoondrills'):
+    #    if await is_admin(message):
+    #        await handle_update_moondrills(message)
+    #    else:
+    #        await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!structure'):
         if await is_admin(message):
@@ -146,11 +168,11 @@ async def on_message(message):
         else:
             await message.channel.send("You are not authorized to use this command.")
 
-    elif message.content.startswith('!debug'):
-        if await is_admin(message):
-            await handle_debug(message)
-        else:
-            await message.channel.send("You are not authorized to use this command.")
+    #elif message.content.startswith('!debug'):
+    #    if await is_admin(message):
+    #        await handle_debug(message)
+    #    else:
+    #        await message.channel.send("You are not authorized to use this command.")
 
     elif message.content.startswith('!showadmin'):
         if await is_admin(message):

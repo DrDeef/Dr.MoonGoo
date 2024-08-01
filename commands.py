@@ -80,6 +80,22 @@ async def handle_setup(message):
     
     await message.channel.send(f"Alert channel set to <#{alert_channel_id}>")
 
+async def handle_add_alert_channel(ctx):
+    # Retrieve the current channel ID
+    alert_channel_id = str(ctx.channel.id)
+
+    # Update the alert channel ID in the configuration
+    current_alert_channel_id = config.get_config('alert_channel_id')
+    if current_alert_channel_id:
+        # If there is already an alert channel set, notify the user
+        await ctx.send(f"Alert channel is already set to <#{current_alert_channel_id}>")
+    else:
+        # Set the new alert channel ID
+        config.set_config('alert_channel_id', alert_channel_id)
+        config.save_config()
+        await ctx.send(f"Alert channel set to <#{alert_channel_id}>")
+
+
 def generate_state():
     return str(uuid.uuid4())
 
@@ -114,21 +130,23 @@ async def handle_showadmin(message):
     admin_channels = config.get_config('admin_channels', [])
     await message.channel.send(f"Current admin channels: {admin_channels}")
 
-async def handle_update_moondrills(message):
-    await message.channel.send("Updating moon drills...")
+async def handle_update_moondrills(ctx):
+    await ctx.send("Updating moon drills...")
     
     moon_drill_ids = await get_moon_drills()
     
     if moon_drill_ids:
         # Update the configuration with new moon drill IDs
         config.set_config('metenox_moon_drill_ids', moon_drill_ids)
-
-       # Save structure info to YAML
+        
+        # Save structure info to YAML
         await save_structure_info_to_yaml(moon_drill_ids)
 
-        await message.channel.send(f"Updated moon drill IDs: {moon_drill_ids}")
+        await ctx.send(f"Updated moon drill IDs: {moon_drill_ids}")
     else:
-        await message.channel.send("No moon drills found or an error occurred.")
+        # Ensure the configuration still has an empty list if no IDs are found
+        config.set_config('metenox_moon_drill_ids', [])
+        await ctx.send("No moon drills found or an error occurred.")
 
 async def get_moon_drills():
     access_token = await get_access_token()
@@ -137,17 +155,12 @@ async def get_moon_drills():
         return []
 
     headers = {'Authorization': f'Bearer {access_token}'}
-
-    # Fetch the corporation ID from the configuration
     corporation_id = config.get_config('corporation_id', '')
-    
-    # Define the URL for the API request
     url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/structures/?datasource=tranquility'
     
     try:
         response = requests.get(url, headers=headers)
-        response.raise_for_status()  # Raises an HTTPError for bad responses
-
+        response.raise_for_status()
         data = response.json()
 
         if 'error' in data:
@@ -161,13 +174,10 @@ async def get_moon_drills():
         ]
 
         return moon_drill_ids
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Request error: {e}")
+        return []
 
-    except requests.RequestException as e:
-        logging.error(f"Request error fetching moon drills: {e}")
-        return []
-    except Exception as e:
-        logging.error(f"Error fetching moon drills: {e}")
-        return []
 
 async def handle_structure(message):
     structure_id = message.content.split()[1]
