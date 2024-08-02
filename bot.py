@@ -6,7 +6,6 @@ import requests
 import uuid
 import asyncio
 import datetime
-from urllib.parse import quote
 from flask import Flask, request, render_template
 from discord.ext import commands, tasks
 from discord.ui import Select, View
@@ -41,6 +40,7 @@ logging.basicConfig(level=logging.INFO)
 async def on_ready():
     print(f'Logged in as {bot.user.name} ({bot.user.id})')
     print('------')
+    refresh_token_task.start()  # Start the refresh token task
     asyncio.create_task(run_alert_scheduler(bot))
 
 async def is_admin(ctx):
@@ -231,26 +231,25 @@ def oauth_callback():
 def run_flask():
     app.run(host='127.0.0.1', port=5005, ssl_context=None)
 
-@tasks.loop(minutes=10)
+@tasks.loop(minutes=5)
 async def refresh_token_task():
     await refresh_token()
 
 async def refresh_token():
+    logging.info('Attempting to refresh access token.')
     if 'refresh_token' not in config.tokens:
         logging.error('No refresh token found. Cannot refresh access token.')
         return
 
-    refresh_token = quote(config.tokens['refresh_token'])  # URL-encode the refresh token
-    data = {
-        'grant_type': 'refresh_token',
-        'refresh_token': refresh_token
-    }
-    
+    refresh_token = config.tokens['refresh_token']
+    refresh_token_encoded = quote(refresh_token)
+    data = f'grant_type=refresh_token&refresh_token={refresh_token_encoded}'
+
     client_id = config.config.get('eve_online_client_id', '')
     client_secret = config.config.get('eve_online_secret_key', '')
     auth_str = f"{client_id}:{client_secret}"
     b64_auth_str = base64.b64encode(auth_str.encode()).decode()
-    
+
     headers = {
         'Authorization': f'Basic {b64_auth_str}',
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -259,21 +258,30 @@ async def refresh_token():
 
     try:
         response = requests.post('https://login.eveonline.com/v2/oauth/token', data=data, headers=headers)
-        response.raise_for_status()  # Raise an exception for HTTP errors
+        response.raise_for_status()
         
         response_data = response.json()
         
-        # Log the entire response for debugging
         logging.debug(f"Response data: {response_data}")
-        
+
         if 'access_token' in response_data:
             config.tokens['access_token'] = response_data['access_token']
-            config.tokens['refresh_token'] = response_data.get('refresh_token', config.tokens['refresh_token'])  # Update refresh token if available
-            config.save_tokens()  # Save tokens to a file
+            config.tokens['refresh_token'] = response_data.get('refresh_token', config.tokens['refresh_token'])
+            config.save_tokens()
             logging.info('Access token refreshed successfully.')
         else:
             error_description = response_data.get('error_description', 'No error description provided.')
             logging.error(f'Failed to refresh access token: {error_description}')
 
     except requests.exceptions.RequestException as e:
-        logging.error(f'Error during token refresh: {e}')
+        logging.error(f'Exception occurred while refreshing access token: {str(e)}')
+
+#### bot start, do not edit!
+if __name__ == "__main__":
+    try:
+        flask_thread = threading.Thread(target=run_flask)
+        flask_thread.start()
+
+        bot.run(config.config.get('discord_bot_token', ''))
+    except discord.errors.LoginFailure:
+        print("Invalid Discord - Bot token. Please check your configuration.")
