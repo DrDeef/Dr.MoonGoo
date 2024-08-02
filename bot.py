@@ -12,6 +12,7 @@ from discord.ui import Select, View
 from discord.utils import get
 from scheduler import run_alert_scheduler
 import config
+from urllib.parse import quote
 from config import get_config
 from commands import (
     handle_setup, handle_authenticate, handle_setadmin, handle_update_moondrills,
@@ -30,6 +31,11 @@ intents.message_content = True  # Enable the message content intent
 # Initialize the bot with the defined intents
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+app = Flask(__name__)
+
+def run_flask():
+    app.run(host='127.0.0.1', port=5005, ssl_context=None)
+
 # Load tokens from file
 config.load_tokens()
 
@@ -42,6 +48,18 @@ async def on_ready():
     print('------')
     refresh_token_task.start()  # Start the refresh token task
     asyncio.create_task(run_alert_scheduler(bot))
+
+@bot.event
+async def on_interaction(interaction: discord.Interaction):
+    if interaction.custom_id == "select_alert_channel":
+        selected_channel_id = interaction.data['values'][0]
+        config.config['alert_channel_id'] = selected_channel_id
+        config.save_config()
+        await interaction.response.send_message(f"Alert channel set to <#{selected_channel_id}>", ephemeral=True)
+
+@tasks.loop(minutes=5)
+async def refresh_token_task():
+    await refresh_token()
 
 async def is_admin(ctx):
     admin_role = get(ctx.guild.roles, name=config.config.get('admin_role', 'Admin'))
@@ -88,14 +106,18 @@ async def selectalertchannel(ctx):
         view=view
     )
 
+@bot.command()
+async def refreshToken(ctx):
+    # Notify the user that the refresh process is starting
+    await ctx.send("Attempting to refresh access token...")
+    
+    # Call the refresh_token function
+    await refresh_token()
+    
+    # Notify the user that the refresh process has been attempted
+    await ctx.send("Token refresh attempted. Check logs for details.")
 
-@bot.event
-async def on_interaction(interaction: discord.Interaction):
-    if interaction.custom_id == "select_alert_channel":
-        selected_channel_id = interaction.data['values'][0]
-        config.config['alert_channel_id'] = selected_channel_id
-        config.save_config()
-        await interaction.response.send_message(f"Alert channel set to <#{selected_channel_id}>", ephemeral=True)
+
 
 @bot.command()
 async def gooalert(ctx):
@@ -188,7 +210,7 @@ async def getMeGoo(ctx):
     # Ensure to process commands
     await bot.process_commands(message)
 
-app = Flask(__name__)
+
 
 @app.route('/oauth-callback')
 def oauth_callback():
@@ -228,15 +250,10 @@ def oauth_callback():
     return render_template('oauth_callback.html')
 
 
-def run_flask():
-    app.run(host='127.0.0.1', port=5005, ssl_context=None)
-
-@tasks.loop(minutes=5)
-async def refresh_token_task():
-    await refresh_token()
 
 async def refresh_token():
     logging.info('Attempting to refresh access token.')
+    
     if 'refresh_token' not in config.tokens:
         logging.error('No refresh token found. Cannot refresh access token.')
         return
@@ -267,7 +284,12 @@ async def refresh_token():
         if 'access_token' in response_data:
             config.tokens['access_token'] = response_data['access_token']
             config.tokens['refresh_token'] = response_data.get('refresh_token', config.tokens['refresh_token'])
-            config.save_tokens()
+
+            access_token = response_data['access_token']
+            refresh_token = response_data.get('refresh_token', config.tokens['refresh_token'])
+            expires_in = response_data['expires_in']
+
+            config.save_tokens(access_token, refresh_token, expires_in)
             logging.info('Access token refreshed successfully.')
         else:
             error_description = response_data.get('error_description', 'No error description provided.')
@@ -276,6 +298,9 @@ async def refresh_token():
     except requests.exceptions.RequestException as e:
         logging.error(f'Exception occurred while refreshing access token: {str(e)}')
 
+
+
+    
 #### bot start, do not edit!
 if __name__ == "__main__":
     try:
