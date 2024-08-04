@@ -156,3 +156,28 @@ Happy drilling! 🚀
 ## Donate
 
 If you like the Bot, please consider donating ISK ingame to [PoorInternetGuy](https://evewho.com/character/2122580011)
+
+
+## Terms<a name="terms"></a>
+
+> \[!CAUTION\]
+> This is an open-source project without any guarantees. Use it at your own risk.
+
+
+## Contributing<a name="contribute"></a>
+
+Contributions are welcome! If you would like to contribute to this project and optimize the code, follow these steps:
+
+1. Fork the repository by clicking on the "Fork" button at the top right corner of this page.
+1. Clone your forked repository to your local machine.
+1. Make the necessary changes and improvements to the code.
+1. Commit your changes and push them to your forked repository.
+1. Submit a pull request by clicking on the "New pull request" button on the original repository's page.
+
+Please ensure that your contributions adhere to the following guidelines:
+
+- Follow the existing code style and conventions.
+- Clearly describe the changes you have made in your pull request.
+- Test your changes thoroughly before submitting the pull request.
+
+By contributing to this project, you agree to release your contributions under the MIT License.
