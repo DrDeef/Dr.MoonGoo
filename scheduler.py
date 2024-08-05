@@ -3,6 +3,16 @@ from datetime import datetime, timedelta
 import yaml
 import requests
 import config
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
+# Dictionary to track the last alert time for each structure
+last_alert_times = {
+    'magmatic_gas': {},
+    'fuel_blocks': {}
+}
 
 async def run_alert_scheduler(bot):
     while True:
@@ -32,6 +42,8 @@ async def check_gas_and_send_alerts(alert_channel):
         await alert_channel.send(all_assets_info)
         return
 
+    current_time = datetime.utcnow()
+
     for structure_id, assets_info in all_assets_info.items():
         structure_name = structure_info.get(structure_id, 'Unknown Structure')
         asset_totals = {'Magmatic Gas': 0, 'Fuel Blocks': 0}
@@ -50,11 +62,45 @@ async def check_gas_and_send_alerts(alert_channel):
         magmatic_gas_depletion_time, magmatic_gas_days, magmatic_gas_hours = calculate_depletion_time(magmatic_gas_amount, 55)
         fuel_blocks_depletion_time, fuel_blocks_days, fuel_blocks_hours = calculate_depletion_time(fuel_blocks_amount, 5)
 
+        # Magmatic Gas alert logic
         if magmatic_gas_days < 2 or (magmatic_gas_days == 1 and magmatic_gas_hours < 24):
-            await alert_channel.send(f"**{structure_name}**: Magmatic Gas is running low!\nMagmatic Gas: ***{magmatic_gas_amount}***\nGas runs out in: {magmatic_gas_days} Days {magmatic_gas_hours} Hours")
-        
+            if structure_name not in last_alert_times['magmatic_gas']:
+                last_alert_times['magmatic_gas'][structure_name] = {
+                    '48h': None,
+                    '24h': None
+                }
+            
+            # Check 48h alert
+            if magmatic_gas_days == 2 and (last_alert_times['magmatic_gas'][structure_name]['48h'] is None or 
+                                           current_time - last_alert_times['magmatic_gas'][structure_name]['48h'] >= timedelta(days=1)):
+                await alert_channel.send(f"**{structure_name}**: Magmatic Gas is running low!\nMagmatic Gas: ***{magmatic_gas_amount}***\nGas runs out in: {magmatic_gas_days} Days {magmatic_gas_hours} Hours")
+                last_alert_times['magmatic_gas'][structure_name]['48h'] = current_time
+            
+            # Check 24h alert
+            elif magmatic_gas_days == 1 and (last_alert_times['magmatic_gas'][structure_name]['24h'] is None or 
+                                             current_time - last_alert_times['magmatic_gas'][structure_name]['24h'] >= timedelta(days=1)):
+                await alert_channel.send(f"**{structure_name}**: Magmatic Gas is running low!\nMagmatic Gas: ***{magmatic_gas_amount}***\nGas runs out in: {magmatic_gas_days} Days {magmatic_gas_hours} Hours")
+                last_alert_times['magmatic_gas'][structure_name]['24h'] = current_time
+
+        # Fuel Blocks alert logic
         if fuel_blocks_days < 2 or (fuel_blocks_days == 1 and fuel_blocks_hours < 24):
-            await alert_channel.send(f"**{structure_name}**: Fuel Blocks are running low!\nFuel Blocks: ***{fuel_blocks_amount}***\nFuel runs out in: {fuel_blocks_days} Days {fuel_blocks_hours} Hours")
+            if structure_name not in last_alert_times['fuel_blocks']:
+                last_alert_times['fuel_blocks'][structure_name] = {
+                    '48h': None,
+                    '24h': None
+                }
+
+            # Check 48h alert
+            if fuel_blocks_days == 2 and (last_alert_times['fuel_blocks'][structure_name]['48h'] is None or 
+                                          current_time - last_alert_times['fuel_blocks'][structure_name]['48h'] >= timedelta(days=1)):
+                await alert_channel.send(f"**{structure_name}**: Fuel Blocks are running low!\nFuel Blocks: ***{fuel_blocks_amount}***\nFuel runs out in: {fuel_blocks_days} Days {fuel_blocks_hours} Hours")
+                last_alert_times['fuel_blocks'][structure_name]['48h'] = current_time
+            
+            # Check 24h alert
+            elif fuel_blocks_days == 1 and (last_alert_times['fuel_blocks'][structure_name]['24h'] is None or 
+                                            current_time - last_alert_times['fuel_blocks'][structure_name]['24h'] >= timedelta(days=1)):
+                await alert_channel.send(f"**{structure_name}**: Fuel Blocks are running low!\nFuel Blocks: ***{fuel_blocks_amount}***\nFuel runs out in: {fuel_blocks_days} Days {fuel_blocks_hours} Hours")
+                last_alert_times['fuel_blocks'][structure_name]['24h'] = current_time
 
 def calculate_depletion_time(amount, rate_per_hour):
     if amount <= 0 or rate_per_hour <= 0:
