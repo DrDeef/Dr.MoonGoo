@@ -87,25 +87,6 @@ async def handle_setup(message):
     # Call the handle_fetch_moon_goo_assets function
     await handle_fetch_moon_goo_assets(message)
 
-# Example placeholders for the functions called in handle_setup
-async def handle_update_moondrills(message):
-    # Placeholder function for handle_update_moondrills
-    await message.channel.send("Updating moon drills...")
-
-async def handle_checkgas(message):
-    # Placeholder function for handle_checkgas
-    await message.channel.send("Checking gas...")
-
-async def handle_fetch_moon_goo_assets(message):
-    # Placeholder function for handle_fetch_moon_goo_assets
-    await message.channel.send("Fetching moon goo assets...")
-
-
-    # Set current channel as an alert channel
-    ##config.get_config['alert_channel_id'] = alert_channel_id
-    ##config.save_config()
-    
-    ##await message.channel.send(f"Alert channel set to <#{alert_channel_id}>")
 
 async def handle_add_alert_channel(ctx):
     # Retrieve the current channel ID
@@ -485,31 +466,39 @@ def is_token_expired():
     return datetime.utcnow() > expiration_time
 
 async def refresh_access_token():
-    # Implement your logic to refresh the access token using the refresh token
     refresh_url = 'https://login.eveonline.com/v2/oauth/token'
     headers = {
         'Content-Type': 'application/x-www-form-urlencoded',
     }
     data = {
         'grant_type': 'refresh_token',
-        'refresh_token': tokens['refresh_token'],
+        'refresh_token': tokens.get('refresh_token', ''),
         'client_id': CLIENT_ID,
         'client_secret': CLIENT_SECRET
     }
-    response = requests.post(refresh_url, headers=headers, data=data)
-    response_data = response.json()
 
-    if 'access_token' in response_data:
-        # Save new tokens
-        tokens['access_token'] = response_data['access_token']
-        tokens['refresh_token'] = response_data.get('refresh_token', tokens['refresh_token'])
-        return tokens['access_token']
-    else:
-        # Handle error
+    try:
+        response = requests.post(refresh_url, headers=headers, data=data)
+        response.raise_for_status()
+        response_data = response.json()
+
+        if 'access_token' in response_data:
+            access_token = response_data['access_token']
+            refresh_token = response_data.get('refresh_token', tokens.get('refresh_token', ''))
+            expires_in = response_data.get('expires_in', 3600)  # Default to 1 hour if not provided
+
+            save_tokens(access_token, refresh_token, expires_in)
+            return access_token
+        else:
+            logging.error(f"Failed to refresh access token: {response_data.get('error_description', 'Unknown error')}")
+            return None
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Request error while refreshing access token: {e}")
         return None
 
+
 ## new moongoo "feature"
-## maybe remove this:
+
 async def save_moon_goo_to_yaml(moon_drill_assets):
     try:
         # Convert defaultdict to a regular dictionary
@@ -573,7 +562,7 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
         moon_drill_ids = await get_moon_drills()
         if moon_drill_ids:
             config.set('metenox_moon_drill_ids', moon_drill_ids)
-            await save_structure_info_to_json(moon_drill_ids)
+            await save_structure_info_to_yaml(moon_drill_ids)
         else:
             await ctx.send("No moon drills found or an error occurred.")
             return
@@ -676,26 +665,26 @@ async def update_moon_goo_items_in_json():
         except IOError as e:
             logging.error(f"Error saving moon goo info to JSON file: {e}")
 
-async def fetch_and_aggregate_assets(ids):
-    all_assets_info = await get_all_structure_assets(ids)
-    
-    if isinstance(all_assets_info, str):  # Handle errors as strings
-        await ctx.send(all_assets_info)
-        return
-
-    if not isinstance(all_assets_info, dict):  # Ensure it's a dict
-        logging.error(f"Unexpected data format: {type(all_assets_info)}")
-        await ctx.send("Unexpected data format received.")
-        return
-
-    for structure_id, assets_info in all_assets_info.items():
-        if structure_name and structure_info.get(structure_id) != structure_name:
-            continue
-
-        for asset in assets_info:
-            type_id = asset.get('type_id')
-            quantity = asset.get('quantity', 0)
-            
-            if type_id in moon_goo_items:
-                item_name = moon_goo_items[type_id]
-                moon_drill_assets[structure_id][item_name] += quantity
+#async def fetch_and_aggregate_assets(ids):
+#    all_assets_info = await get_all_structure_assets(ids)
+#    
+#    if isinstance(all_assets_info, str):  # Handle errors as strings
+#        await ctx.send(all_assets_info)
+#        return
+#
+#    if not isinstance(all_assets_info, dict):  # Ensure it's a dict
+#        logging.error(f"Unexpected data format: {type(all_assets_info)}")
+#        await ctx.send("Unexpected data format received.")
+#        return
+#
+#    for structure_id, assets_info in all_assets_info.items():
+#        if structure_name and structure_info.get(structure_id) != structure_name:
+#            continue
+#
+#        for asset in assets_info:
+#            type_id = asset.get('type_id')
+#            quantity = asset.get('quantity', 0)
+#            
+#            if type_id in moon_goo_items:
+#                item_name = moon_goo_items[type_id]
+#                moon_drill_assets[structure_id][item_name] += quantity
