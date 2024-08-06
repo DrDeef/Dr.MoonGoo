@@ -150,7 +150,8 @@ async def handle_update_moondrills(ctx):
         # Save structure info to YAML
         await save_structure_info_to_yaml(moon_drill_ids)
 
-        await ctx.send(f"Updated moon drill IDs: {moon_drill_ids}")
+        await ctx.send(f"Metenox Moondrills updated without error")
+        #await ctx.send(f"Updated moon drill IDs: {moon_drill_ids}")
     else:
         # Ensure the configuration still has an empty list if no IDs are found
         config.set_config('metenox_moon_drill_ids', [])

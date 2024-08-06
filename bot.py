@@ -14,9 +14,10 @@ from scheduler import run_alert_scheduler
 import config
 from urllib.parse import quote
 from config import get_config
+from tasks import refresh_token, refresh_token_task
 from commands import (
     handle_setup, handle_authenticate, handle_setadmin, handle_update_moondrills,
-    handle_structure, handle_checkgas, handle_structureassets, handle_debug, handle_showadmin, handle_help, handle_add_alert_channel, handle_fetch_moon_goo_assets
+    handle_structure, handle_checkgas, handle_debug, handle_showadmin, handle_help, handle_add_alert_channel, handle_fetch_moon_goo_assets
 )
 
 # Fetch the configuration values
@@ -57,9 +58,6 @@ async def on_interaction(interaction: discord.Interaction):
         config.save_config()
         await interaction.response.send_message(f"Alert channel set to <#{selected_channel_id}>", ephemeral=True)
 
-@tasks.loop(minutes=5)
-async def refresh_token_task():
-    await refresh_token()
 
 async def is_admin(ctx):
     admin_role = get(ctx.guild.roles, name=config.config.get('admin_role', 'Admin'))
@@ -182,34 +180,14 @@ async def getMeGoo(ctx):
     # Call the function to update the YAML file, passing the ctx argument
     await handle_setup(ctx)
 
-
-    if message.author == bot.user:
-        return
-
-    print(f"Message received in channel ID: {message.channel.id}")
-
-    if message.content.startswith('!goohelp'):
-        await handle_help(message)
+@bot.command()
+async def goohelp(ctx):
+    await handle_help(ctx)
 
 
-    elif message.content.startswith('!structure'):
-        if await is_admin(message):
-            await handle_structure(message)
-        else:
-            await message.channel.send("You are not authorized to use this command.")
-
-    elif message.content.startswith('!structureassets'):
-            await handle_structureassets(message)
-
-    elif message.content.startswith('!showadmin'):
-        if await is_admin(message):
-            await handle_showadmin(message)
-        else:
-            await message.channel.send("You are not authorized to use this command.")
-
-    # Ensure to process commands
-    await bot.process_commands(message)
-
+@bot.command()
+async def structure(ctx):
+    await handle_structure(ctx)
 
 
 @app.route('/oauth-callback')
@@ -248,55 +226,6 @@ def oauth_callback():
     config.save_tokens(access_token, refresh_token, expires_in)
 
     return render_template('oauth_callback.html')
-
-
-
-async def refresh_token():
-    logging.info('Attempting to refresh access token.')
-    
-    if 'refresh_token' not in config.tokens:
-        logging.error('No refresh token found. Cannot refresh access token.')
-        return
-
-    refresh_token = config.tokens['refresh_token']
-    refresh_token_encoded = quote(refresh_token)
-    data = f'grant_type=refresh_token&refresh_token={refresh_token_encoded}'
-
-    client_id = config.config.get('eve_online_client_id', '')
-    client_secret = config.config.get('eve_online_secret_key', '')
-    auth_str = f"{client_id}:{client_secret}"
-    b64_auth_str = base64.b64encode(auth_str.encode()).decode()
-
-    headers = {
-        'Authorization': f'Basic {b64_auth_str}',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Host': 'login.eveonline.com'
-    }
-
-    try:
-        response = requests.post('https://login.eveonline.com/v2/oauth/token', data=data, headers=headers)
-        response.raise_for_status()
-        
-        response_data = response.json()
-        
-        logging.debug(f"Response data: {response_data}")
-
-        if 'access_token' in response_data:
-            config.tokens['access_token'] = response_data['access_token']
-            config.tokens['refresh_token'] = response_data.get('refresh_token', config.tokens['refresh_token'])
-
-            access_token = response_data['access_token']
-            refresh_token = response_data.get('refresh_token', config.tokens['refresh_token'])
-            expires_in = response_data['expires_in']
-
-            config.save_tokens(access_token, refresh_token, expires_in)
-            logging.info('Access token refreshed successfully.')
-        else:
-            error_description = response_data.get('error_description', 'No error description provided.')
-            logging.error(f'Failed to refresh access token: {error_description}')
-
-    except requests.exceptions.RequestException as e:
-        logging.error(f'Exception occurred while refreshing access token: {str(e)}')
 
 
 
