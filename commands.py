@@ -193,7 +193,6 @@ async def handle_structure(message):
     await message.channel.send(structure_info)
 
 
-
 async def handle_checkgas(message):
     # Load structure info from YAML file
     await load_structure_info_from_yaml()
@@ -240,7 +239,7 @@ async def handle_checkgas(message):
 
             if type_id == 81143:  # Type ID for Magmatic Gas
                 asset_totals['Magmatic Gas'] += quantity
-            elif type_id == 4312:  # Type ID for Fuel Blocks
+            elif type_id in [4312, 4246, 4247, 4051]:  # Type IDs for Fuel Blocks
                 asset_totals['Fuel Blocks'] += quantity
 
         # Calculate depletion times
@@ -279,7 +278,6 @@ async def handle_checkgas(message):
             await message.channel.send(chunk)
     else:
         await message.channel.send(gas_info)
-
 
 
 async def get_all_structure_assets(structure_ids):
