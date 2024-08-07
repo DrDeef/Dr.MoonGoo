@@ -12,6 +12,7 @@ from discord.ui import Select, View
 from discord.utils import get
 from scheduler import run_alert_scheduler
 import config
+import tasks 
 from urllib.parse import quote
 from config import get_config
 from tasks import refresh_token, refresh_token_task
@@ -47,8 +48,7 @@ logging.basicConfig(level=logging.INFO)
 async def on_ready():
     print(f'Logged in as {bot.user.name} ({bot.user.id})')
     print('------')
-    refresh_token_task.start()  # Start the refresh token task
-    asyncio.create_task(run_alert_scheduler(bot))
+    tasks.start_tasks(bot)
 
 @bot.event
 async def on_interaction(interaction: discord.Interaction):

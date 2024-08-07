@@ -2,6 +2,7 @@ import yaml
 import logging
 import requests
 import config
+import aiohttp
 from administration import get_access_token
 
 CORPORATION_ID = config.get_config('corporation_id', '')
@@ -76,27 +77,31 @@ async def get_moon_drills():
     headers = {'Authorization': f'Bearer {access_token}'}
     corporation_id = config.get_config('corporation_id', '')
     url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/structures/?datasource=tranquility'
-    
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        data = response.json()
 
-        if 'error' in data:
-            logging.error(f"Error fetching moon drills: {data['error']}")
+    logging.info(f"Fetching moon drills from URL: {url} with headers: {headers}")
+
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, headers=headers) as response:
+                response.raise_for_status()
+                data = await response.json()
+
+                if 'error' in data:
+                    logging.error(f"Error fetching moon drills: {data['error']}")
+                    return []
+
+                moon_drill_ids = [
+                    structure['structure_id']
+                    for structure in data
+                    if structure['type_id'] == 35835 or 'Automatic Moon Drilling' in [service['name'] for service in structure.get('services', [])]
+                ]
+
+                logging.info(f"Fetched moon drills: {moon_drill_ids}")
+
+                return moon_drill_ids
+        except aiohttp.ClientError as e:
+            logging.error(f"Request error: {e}")
             return []
-
-        moon_drill_ids = [
-            structure['structure_id']
-            for structure in data
-            if structure['type_id'] == 35835 or 'Automatic Moon Drilling' in [service['name'] for service in structure.get('services', [])]
-        ]
-
-        return moon_drill_ids
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Request error: {e}")
-        return []
-    
 
 async def load_structure_info_from_yaml():
     global structure_info

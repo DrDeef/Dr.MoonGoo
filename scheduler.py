@@ -4,6 +4,7 @@ import yaml
 import requests
 import config
 import logging
+from administration import get_access_token
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -136,6 +137,3 @@ async def get_all_structure_assets(structure_ids):
             all_assets[structure_id] = assets
     
     return all_assets
-
-async def get_access_token():
-    return config.tokens.get('access_token')

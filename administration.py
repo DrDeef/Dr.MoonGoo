@@ -1,8 +1,10 @@
 
-import requests
+import aiohttp
 import logging
 import config
+from urllib.parse import quote
 from config import load_tokens, save_tokens
+import base64
 from datetime import datetime, timedelta
 
 
@@ -27,69 +29,77 @@ states = config.states
 
 async def get_access_token():
     tokens = load_tokens()
-    
-    # Check if there's a valid token already
+    logging.info(f"Tokens loaded in get_access_token: {tokens}")
+
     if tokens and 'access_token' in tokens and not is_token_expired():
+        logging.info("Returning existing access token.")
         return tokens['access_token']
     
-    # Refresh the token if expired or missing
     if tokens and 'refresh_token' in tokens:
-        new_tokens = await refresh_access_token()
-        # Save the new tokens
-        save_tokens(new_tokens['access_token'], new_tokens.get('refresh_token', tokens.get('refresh_token')), new_tokens.get('expires_in', 3600))
-        return new_tokens['access_token']
+        logging.info("Attempting to refresh access token.")
+        new_tokens = await refresh_token()
+        if new_tokens:
+            save_tokens(
+                new_tokens.get('access_token', tokens.get('access_token')),
+                new_tokens.get('refresh_token', tokens.get('refresh_token')),
+                new_tokens.get('expires_in', 3600)
+            )
+            logging.info(f"New tokens saved: {new_tokens}")
+            return new_tokens.get('access_token')
     
-    # Handle the case where no refresh token is available
+    logging.error("No access token available and refresh token not found or refresh failed.")
     return None
 
+
 def is_token_expired():
-    """Check if the stored token is expired."""
     tokens = load_tokens()
-    if not tokens:
-        # No tokens found
+    if not tokens or 'created_at' not in tokens or 'expires_in' not in tokens:
         return True
-
-    created_at_str = tokens.get('created_at')
-    expires_in = tokens.get('expires_in')
-
-    if not created_at_str or expires_in is None:
-        # Missing token details
-        return True
-
-    created_at = datetime.fromisoformat(created_at_str)
+    
+    created_at = datetime.fromisoformat(tokens['created_at'])
+    expires_in = tokens['expires_in']
     expiration_time = created_at + timedelta(seconds=expires_in)
-
-    # Compare the current time with the expiration time
+    
     return datetime.utcnow() > expiration_time
 
-async def refresh_access_token():
-    refresh_url = 'https://login.eveonline.com/v2/oauth/token'
+async def refresh_token():
+    tokens = config.load_tokens()
+    
+    if not tokens or 'refresh_token' not in tokens:
+        logging.error("No refresh token found. Cannot refresh access token.")
+        return {}
+
+    refresh_token = tokens['refresh_token']
+    logging.info(f"Using refresh token: {refresh_token}")
+
+    refresh_token_encoded = quote(refresh_token)
+    data = f'grant_type=refresh_token&refresh_token={refresh_token_encoded}'
+
+    client_id = config.get_config('eve_online_client_id', '')
+    client_secret = config.get_config('eve_online_secret_key', '')
+    auth_str = f"{client_id}:{client_secret}"
+    b64_auth_str = base64.b64encode(auth_str.encode()).decode()
+
     headers = {
+        'Authorization': f'Basic {b64_auth_str}',
         'Content-Type': 'application/x-www-form-urlencoded',
-    }
-    data = {
-        'grant_type': 'refresh_token',
-        'refresh_token': tokens.get('refresh_token', ''),
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET
+        'Host': 'login.eveonline.com'
     }
 
-    try:
-        response = requests.post(refresh_url, headers=headers, data=data)
-        response.raise_for_status()
-        response_data = response.json()
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post('https://login.eveonline.com/v2/oauth/token', data=data, headers=headers) as response:
+                response.raise_for_status()
+                response_data = await response.json()
+                
+                logging.info(f"Refresh response data: {response_data}")
 
-        if 'access_token' in response_data:
-            access_token = response_data['access_token']
-            refresh_token = response_data.get('refresh_token', tokens.get('refresh_token', ''))
-            expires_in = response_data.get('expires_in', 3600)  # Default to 1 hour if not provided
-
-            save_tokens(access_token, refresh_token, expires_in)
-            return access_token
-        else:
-            logging.error(f"Failed to refresh access token: {response_data.get('error_description', 'Unknown error')}")
-            return None
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Request error while refreshing access token: {e}")
-        return None
-
+                if 'access_token' in response_data:
+                    logging.info(f"New access token: {response_data['access_token']}")
+                    return response_data
+                else:
+                    logging.error(f'Failed to refresh access token: {response_data.get("error_description", "No error description provided.")}')
+                    return {}
+        except aiohttp.ClientError as e:
+            logging.error(f'Exception occurred while refreshing access token: {str(e)}')
+            return {}
