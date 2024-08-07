@@ -7,10 +7,11 @@ import uuid
 import config
 import moongoo
 import time
-from moongoo import get_moon_goo_items
+from moongoo_commands import handle_fetch_moon_goo_assets
 from config import load_tokens, save_tokens
 from datetime import datetime, timedelta
 from collections import defaultdict
+from structurecommands import get_all_structure_assets, get_moon_drills, get_structure_info
 
 logging.basicConfig(level=logging.INFO)
 
@@ -29,41 +30,7 @@ MOON_DRILL_IDS = config.get_config('metenox_moon_drill_ids', [])
 tokens = config.tokens
 states = config.states
 
-async def save_structure_info_to_yaml(moon_drill_ids):
-    access_token = await get_access_token()
-    if not access_token:
-        logging.error("Failed to get access token.")
-        return
 
-    headers = {'Authorization': f'Bearer {access_token}'}
-    structure_info = {}
-
-    for structure_id in moon_drill_ids:
-        # Use the new endpoint for structure details
-        url = f'https://esi.evetech.net/latest/universe/structures/{structure_id}/'
-        response = requests.get(url, headers=headers)
-        data = response.json()
-
-        if 'error' in data:
-            logging.error(f"Error fetching structure info for ID {structure_id}: {data.get('error', 'Unknown error')}")
-            structure_info[structure_id] = 'Unknown Structure'
-        else:
-            structure_name = data.get('name', 'Unknown Structure')
-            structure_info[structure_id] = structure_name
-
-    try:
-        with open('structure_info.yaml', 'w') as file:
-            yaml.dump(structure_info, file)
-    except IOError as e:
-        logging.error(f"Error saving structure info to YAML file: {e}")
-
-async def load_structure_info_from_yaml():
-    global structure_info
-    try:
-        with open('structure_info.yaml', 'r') as file:
-            structure_info = yaml.safe_load(file) or {}
-    except FileNotFoundError:
-        structure_info = {}
 
 async def handle_setup(message):
     # Setup completed
@@ -139,7 +106,8 @@ async def handle_showadmin(message):
     await message.channel.send(f"Current admin channels: {admin_channels}")
 
 async def handle_update_moondrills(ctx):
-    await ctx.send("Updating moon drills...")
+    from structurecommands import save_structure_info_to_yaml
+    await ctx.send("Updating moon drills... Please wait.... \n \n")
     
     moon_drill_ids = await get_moon_drills()
     
@@ -150,41 +118,12 @@ async def handle_update_moondrills(ctx):
         # Save structure info to YAML
         await save_structure_info_to_yaml(moon_drill_ids)
 
-        await ctx.send(f"Updated moon drill IDs: {moon_drill_ids}")
+        await ctx.send(f"Metenox Moondrills successfully updated.\n > Moondrill-ID's: \n > {moon_drill_ids}")
+        #await ctx.send(f"Updated moon drill IDs: {moon_drill_ids}")
     else:
         # Ensure the configuration still has an empty list if no IDs are found
         config.set_config('metenox_moon_drill_ids', [])
         await ctx.send("No moon drills found or an error occurred.")
-
-async def get_moon_drills():
-    access_token = await get_access_token()
-    if not access_token:
-        logging.error("No access token available. Cannot fetch moon drills.")
-        return []
-
-    headers = {'Authorization': f'Bearer {access_token}'}
-    corporation_id = config.get_config('corporation_id', '')
-    url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/structures/?datasource=tranquility'
-    
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-
-        if 'error' in data:
-            logging.error(f"Error fetching moon drills: {data['error']}")
-            return []
-
-        moon_drill_ids = [
-            structure['structure_id']
-            for structure in data
-            if structure['type_id'] == 35835 or 'Automatic Moon Drilling' in [service['name'] for service in structure.get('services', [])]
-        ]
-
-        return moon_drill_ids
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Request error: {e}")
-        return []
 
 
 async def handle_structure(message):
@@ -192,10 +131,16 @@ async def handle_structure(message):
     structure_info = await get_structure_info(structure_id)
     await message.channel.send(structure_info)
 
-
 async def handle_checkgas(message):
+    from structurecommands import load_structure_info_from_yaml, save_structure_info_to_yaml
     # Load structure info from YAML file
-    await load_structure_info_from_yaml()
+    try:
+        with open('structure_info.yaml', 'r') as file:
+            structure_info = yaml.safe_load(file) or {}
+    except FileNotFoundError:
+        structure_info = {}
+        await message.channel.send("Structure info file not found. Please ensure 'structure_info.yaml' is present.")
+        return
 
     # Get all moon drill structure IDs from the configuration
     moon_drill_ids = config.get_config('metenox_moon_drill_ids', [])
@@ -280,39 +225,6 @@ async def handle_checkgas(message):
         await message.channel.send(gas_info)
 
 
-async def get_all_structure_assets(structure_ids):
-    access_token = await get_access_token()
-    if not access_token:
-        logging.error('Failed to get access token')
-        return 'Failed to get access token'
-    
-    headers = {'Authorization': f'Bearer {access_token}'}
-    url = f'https://esi.evetech.net/latest/corporations/{CORPORATION_ID}/assets/?datasource=tranquility'
-    
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-    except requests.exceptions.HTTPError as http_err:
-        logging.error(f"HTTP error occurred: {http_err}")
-        return f"HTTP error occurred: {http_err}"
-    except requests.exceptions.RequestException as req_err:
-        logging.error(f"Error occurred during request: {req_err}")
-        return f"Error occurred during request: {req_err}"
-    
-    if isinstance(data, list):
-        all_assets = {}
-        for asset in data:
-            structure_id = asset.get('location_id')
-            if structure_id in structure_ids:
-                if structure_id not in all_assets:
-                    all_assets[structure_id] = []
-                all_assets[structure_id].append(asset)
-        return all_assets
-    
-    logging.error("Unexpected API response format")
-    return "Unexpected API response format"
-
 async def handle_structureassets(ctx):
     # Load structure info from YAML file
     try:
@@ -369,34 +281,6 @@ async def handle_structureassets(ctx):
     else:
         await ctx.send(response)
 
-async def get_structure_name(structure_id):
-    # Mock implementation - replace with actual API call or data retrieval
-    # Assuming you have a method to get structure names by ID
-    access_token = await get_access_token()
-    if not access_token:
-        return 'Failed to get access token'
-    
-    headers = {'Authorization': f'Bearer {access_token}'}
-    url = f'https://esi.evetech.net/latest/corporations/{CORPORATION_ID}/structures/{structure_id}/?datasource=tranquility'
-    response = requests.get(url, headers=headers)
-    data = response.json()
-    
-    if 'error' in data:
-        logging.error(f"Error fetching structure name: {data['error']}")
-        return 'Unknown Structure'
-    
-    return data.get('name', 'Unknown Structure')
-
-async def handle_help(message):
-    await message.channel.send(
-        "Hello My Name is Dr. MoonGoo, here are some basic commands.\n\n"
-        "**Common commands:**\n"
-        "**!authenticate**: Authenticate the bot against the EvE Online ESI API\n"
-        "**!updatemoondrills**: Update your Moondrill Structures\n"
-        "**!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with the date/time when it runs out.\n"
-        "When setup with !GooAlert I will send you a message in a channel where you run the command if fuel runs out within the next 48 hours\n\n"
-        "Feel free to open a GitHub issue here: https://github.com/DrDeef/Dr.MoonGoo"
-    )
 
 
 async def handle_debug(message):
@@ -408,281 +292,13 @@ async def handle_debug(message):
     await message.channel.send("Debug information: ...")
     await message.channel.send(f'Access Token: {access_token}\nRefresh Token: {refresh_token}')
 
-
-async def get_structure_info(structure_id):
-    access_token = await get_access_token()
-    if not access_token:
-        return "Failed to get access token."
-
-    headers = {'Authorization': f'Bearer {access_token}'}
-    url = f'https://esi.evetech.net/latest/universe/structures/{structure_id}/'
-    response = requests.get(url, headers=headers)
-    data = response.json()
-
-    if 'error' in data:
-        return f"Error fetching structure info for ID {structure_id}: {data.get('error', 'Unknown error')}"
-    
-    structure_name = data.get('name', 'Unknown Structure')
-    return f"Structure ID: {structure_id}\nStructure Name: {structure_name}"
-
-async def get_access_token():
-    tokens = load_tokens()
-    
-    # Check if there's a valid token already
-    if 'access_token' in tokens and not is_token_expired():
-        return tokens['access_token']
-    
-    # Refresh the token if expired or missing
-    if 'refresh_token' in tokens:
-        new_tokens = await refresh_access_token()
-        # Save the new tokens
-        with open('tokens.json', 'w') as file:
-            json.dump(new_tokens, file, indent=4)
-        return new_tokens['access_token']
-    
-    # Handle the case where no refresh token is available
-    return None
-
-def is_token_expired():
-    """Check if the stored token is expired."""
-    tokens = load_tokens()
-    if not tokens:
-        # No tokens found
-        return True
-
-    created_at_str = tokens.get('created_at')
-    expires_in = tokens.get('expires_in')
-
-    if not created_at_str or expires_in is None:
-        # Missing token details
-        return True
-
-    created_at = datetime.fromisoformat(created_at_str)
-    expiration_time = created_at + timedelta(seconds=expires_in)
-
-    # Compare the current time with the expiration time
-    return datetime.utcnow() > expiration_time
-
-async def refresh_access_token():
-    refresh_url = 'https://login.eveonline.com/v2/oauth/token'
-    headers = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-    }
-    data = {
-        'grant_type': 'refresh_token',
-        'refresh_token': tokens.get('refresh_token', ''),
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET
-    }
-
-    try:
-        response = requests.post(refresh_url, headers=headers, data=data)
-        response.raise_for_status()
-        response_data = response.json()
-
-        if 'access_token' in response_data:
-            access_token = response_data['access_token']
-            refresh_token = response_data.get('refresh_token', tokens.get('refresh_token', ''))
-            expires_in = response_data.get('expires_in', 3600)  # Default to 1 hour if not provided
-
-            save_tokens(access_token, refresh_token, expires_in)
-            return access_token
-        else:
-            logging.error(f"Failed to refresh access token: {response_data.get('error_description', 'Unknown error')}")
-            return None
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Request error while refreshing access token: {e}")
-        return None
-
-
-## new moongoo "feature"
-
-async def save_moon_goo_to_yaml(moon_drill_assets):
-    try:
-        # Convert defaultdict to a regular dictionary
-        regular_dict = {k: dict(v) for k, v in moon_drill_assets.items()}
-        logging.info(f"Saving moon goo data to YAML: {regular_dict}")
-        with open('metenox_goo.yaml', 'w') as file:
-            yaml.dump(regular_dict, file)
-    except IOError as e:
-        logging.error(f"Error saving moon goo info to YAML file: {e}")
-### remove this
-async def load_moon_goo_from_yaml():
-    try:
-        with open('metenox_goo.yaml', 'r') as file:
-            data = yaml.safe_load(file) or {}
-            # Convert loaded data back to a regular dict
-            moon_goo_items = dict(data)
-            return moon_goo_items
-    except FileNotFoundError:
-        return {}
-### end remove.
-
-
-async def save_moon_goo_to_json(moon_drill_assets):
-    try:
-        # Convert defaultdict to a regular dictionary
-        regular_dict = {k: dict(v) for k, v in moon_drill_assets.items()}
-        logging.info(f"Saving moon goo data to JSON: {regular_dict}")
-        with open('metenox_goo.json', 'w') as file:
-            json.dump(regular_dict, file, indent=4)
-    except IOError as e:
-        logging.error(f"Error saving moon goo info to JSON file: {e}")
-
-async def load_moon_goo_from_json():
-    try:
-        with open('metenox_goo.json', 'r') as file:
-            data = json.load(file) or {}
-            # Convert loaded data back to a regular dict
-            moon_goo_items = dict(data)
-            return moon_goo_items
-    except FileNotFoundError:
-        return {}
-    
-
-async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
-    moon_goo_items = get_moon_goo_items()
-    logging.info(f"Loaded moon goo items: {moon_goo_items}")
-    
-    # Load structure info from YAML file
-    try:
-        with open('structure_info.yaml', 'r') as file:
-            structure_info = yaml.safe_load(file) or {}
-    except FileNotFoundError:
-        structure_info = {}
-        await ctx.send("Structure info file not found. Please ensure 'structure_info.yaml' is present.")
-        return
-
-    # Get all moon drill structure IDs from the configuration
-    moon_drill_ids = config.get_config('metenox_moon_drill_ids', [])
-    
-    if not moon_drill_ids:
-        moon_drill_ids = await get_moon_drills()
-        if moon_drill_ids:
-            config.set('metenox_moon_drill_ids', moon_drill_ids)
-            await save_structure_info_to_yaml(moon_drill_ids)
-        else:
-            await ctx.send("No moon drills found or an error occurred.")
-            return
-
-    moon_drill_assets = defaultdict(lambda: defaultdict(int))
-    
-    async def fetch_and_aggregate_assets(ids):
-        all_assets_info = await get_all_structure_assets(ids)
-        if isinstance(all_assets_info, str):
-            await ctx.send(all_assets_info)
-            return
-
-        for structure_id, assets_info in all_assets_info.items():
-            if structure_name and structure_info.get(structure_id) != structure_name:
-                continue
-
-            for asset in assets_info:
-                type_id = asset.get('type_id')
-                quantity = asset.get('quantity', 0)
-                
-                if type_id in moon_goo_items:
-                    item_name = moon_goo_items[type_id]
-                    moon_drill_assets[structure_id][item_name] += quantity
-
-    # Fetch all assets in chunks to avoid timeout issues
-    chunk_size = 100  # Adjust this as needed
-    for i in range(0, len(moon_drill_ids), chunk_size):
-        await fetch_and_aggregate_assets(moon_drill_ids[i:i + chunk_size])
-
-    if not moon_drill_assets:
-        await ctx.send("No moon goo data found.")
-        return
-
-    # Prepare response message
-    response_message = ""
-    for structure_id, assets in moon_drill_assets.items():
-        structure_name = structure_info.get(structure_id, 'Unknown Structure')
-        response_message += f"**{structure_name} (ID: {structure_id})**\n"
-        
-        for item_name, total_quantity in assets.items():
-            response_message += f"__{item_name}__: ***{total_quantity}***\n"
-        response_message += "\n"  # Add a newline for separation
-
-    # Save the aggregated moon drill assets to JSON
-    try:
-        save_data = {structure_id: dict(data) for structure_id, data in moon_drill_assets.items()}
-        with open('metenox_goo.json', 'w') as file:
-            json.dump(save_data, file, indent=4)  # Save as JSON
-        logging.info(f"Saved aggregated moon goo data to JSON: {save_data}")
-    except IOError as e:
-        logging.error(f"Error saving moon goo info to JSON file: {e}")
-
-    # Send message in chunks if necessary
-    if len(response_message) > 2000:
-        chunks = [response_message[i:i + 2000] for i in range(0, len(response_message), 2000)]
-        for chunk in chunks:
-            await ctx.send(chunk)
-    else:
-        await ctx.send(response_message)
-
-
-async def update_moon_goo_items_in_json():
-    moon_goo_items = get_moon_goo_items()
-    logging.info(f"Loaded moon goo items: {moon_goo_items}")
-
-    moon_drill_ids = get_config('metenox_moon_drill_ids', [])
-    logging.info(f"Loaded moon drill IDs: {moon_drill_ids}")
-    
-    all_assets_info = await get_all_structure_assets(moon_drill_ids)
-    
-    if isinstance(all_assets_info, str):
-        logging.error(all_assets_info)
-        return
-    
-    logging.info(f"Fetched assets info: {all_assets_info}")
-
-    aggregated_data = defaultdict(dict)
-    
-    for structure_id, assets_info in all_assets_info.items():
-        structure_name = f"Station {structure_id}"
-        
-        for asset in assets_info:
-            type_id = asset.get('type_id')
-            quantity = asset.get('quantity', 0)
-            
-            if type_id in moon_goo_items:
-                item_name = moon_goo_items[type_id]
-                if item_name in aggregated_data[structure_name]:
-                    aggregated_data[structure_name][item_name] += quantity
-                else:
-                    aggregated_data[structure_name][item_name] = quantity
-    
-    if not aggregated_data:
-        logging.info("No moon goo data found.")
-    else:
-        try:
-            with open('metenox_goo.json', 'w') as file:
-                json.dump(aggregated_data, file, indent=4)
-            logging.info("Moon goo items updated successfully!")
-        except IOError as e:
-            logging.error(f"Error saving moon goo info to JSON file: {e}")
-
-#async def fetch_and_aggregate_assets(ids):
-#    all_assets_info = await get_all_structure_assets(ids)
-#    
-#    if isinstance(all_assets_info, str):  # Handle errors as strings
-#        await ctx.send(all_assets_info)
-#        return
-#
-#    if not isinstance(all_assets_info, dict):  # Ensure it's a dict
-#        logging.error(f"Unexpected data format: {type(all_assets_info)}")
-#        await ctx.send("Unexpected data format received.")
-#        return
-#
-#    for structure_id, assets_info in all_assets_info.items():
-#        if structure_name and structure_info.get(structure_id) != structure_name:
-#            continue
-#
-#        for asset in assets_info:
-#            type_id = asset.get('type_id')
-#            quantity = asset.get('quantity', 0)
-#            
-#            if type_id in moon_goo_items:
-#                item_name = moon_goo_items[type_id]
-#                moon_drill_assets[structure_id][item_name] += quantity
+async def handle_help(message):
+    await message.channel.send(
+        "Hello My Name is Dr. MoonGoo, here are some basic commands.\n\n"
+        "**Common commands:**\n"
+        "**!authenticate**: Authenticate the bot against the EvE Online ESI API\n"
+        "**!updatemoondrills**: Update your Moondrill Structures\n"
+        "**!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with the date/time when it runs out.\n"
+        "When setup with !GooAlert I will send you a message in a channel where you run the command if fuel runs out within the next 48 hours\n\n"
+        "Feel free to open a GitHub issue here: https://github.com/DrDeef/Dr.MoonGoo"
+    )

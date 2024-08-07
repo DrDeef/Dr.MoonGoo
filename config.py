@@ -1,6 +1,7 @@
 import yaml
 import json
-from datetime import datetime 
+from datetime import datetime
+import logging
 
 # Define global variables to be loaded from the config.yaml
 config = {}
@@ -33,23 +34,29 @@ def save_config():
         yaml.safe_dump(config, file)
 
 def load_tokens():
-    global tokens
     try:
         with open('tokens.json', 'r') as file:
-            return json.load(file)
-    except FileNotFoundError:
+            tokens = json.load(file)
+            logging.info(f"Tokens loaded: {tokens}")
+            return tokens
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logging.error(f"Error loading tokens: {e}")
         return {}
 
 def save_tokens(access_token, refresh_token, expires_in):
-    global tokens
     tokens = {
         'access_token': access_token,
         'refresh_token': refresh_token,
         'created_at': datetime.utcnow().isoformat(),
         'expires_in': expires_in
     }
-    with open('tokens.json', 'w') as file:
-        json.dump(tokens, file, indent=4)  # Added indent for better readability
+    try:
+        with open('tokens.json', 'w') as file:
+            json.dump(tokens, file, indent=4)
+        logging.info(f"Tokens saved: {tokens}")
+    except Exception as e:
+        logging.error(f"Error saving tokens: {e}")
+
 
 
 def get_config(key, default=None):
