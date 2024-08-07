@@ -7,7 +7,7 @@ import uuid
 import asyncio
 import datetime
 from flask import Flask, request, render_template
-from discord.ext import commands, tasks
+from discord.ext import commands
 from discord.ui import Select, View
 from discord.utils import get
 from scheduler import run_alert_scheduler
@@ -233,6 +233,9 @@ def oauth_callback():
 #### bot start, do not edit!
 if __name__ == "__main__":
     try:
+        config.load_config()
+        config.load_tokens()  # Ensure tokens are loaded
+
         flask_thread = threading.Thread(target=run_flask)
         flask_thread.start()
 

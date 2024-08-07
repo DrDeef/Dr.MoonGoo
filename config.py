@@ -33,12 +33,14 @@ def save_config():
         yaml.safe_dump(config, file)
 
 def load_tokens():
-    global tokens
     try:
         with open('tokens.json', 'r') as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return {}
+            tokens = json.load(file)
+            return tokens
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}  # Return an empty dictionary if tokens cannot be loaded
+
+
 
 def save_tokens(access_token, refresh_token, expires_in):
     global tokens
