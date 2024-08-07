@@ -1,4 +1,4 @@
-![Version](https://img.shields.io/badge/version-0.0.1-red) ![Docker Pulls](https://img.shields.io/docker/pulls/drdeef/drmoongoo) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/drdeef/Dr.MoonGoo?style=flat&color=green)
+![Version](https://img.shields.io/badge/version-0.0.2-red) ![Docker Pulls](https://img.shields.io/docker/pulls/drdeef/drmoongoo) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/drdeef/Dr.MoonGoo?style=flat&color=green)
 
 
 
