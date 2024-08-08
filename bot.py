@@ -14,11 +14,11 @@ from scheduler import run_alert_scheduler
 import config
 import tasks 
 from urllib.parse import quote
-from config import get_config
-from tasks import refresh_token, refresh_token_task
+from config import get_config, save_tokens, states
+from tasks import refresh_token
 from commands import (
     handle_setup, handle_authenticate, handle_setadmin, handle_update_moondrills,
-    handle_structure, handle_checkgas, handle_debug, handle_showadmin, handle_help, handle_add_alert_channel, handle_fetch_moon_goo_assets
+    handle_structure, handle_structureassets, handle_checkgas, handle_spacegoblin, handle_debug, handle_showadmin, handle_help, handle_add_alert_channel, handle_fetch_moon_goo_assets
 )
 
 # Fetch the configuration values
@@ -51,6 +51,14 @@ async def on_ready():
     tasks.start_tasks(bot)
 
 @bot.event
+async def on_guild_join(guild):
+    server_id = str(guild.id)
+    config.add_server_id(server_id)
+    print(f'Joined new server: {guild.name} ({server_id})')
+    # You can also log this information or handle it as needed
+
+
+@bot.event
 async def on_interaction(interaction: discord.Interaction):
     if interaction.custom_id == "select_alert_channel":
         selected_channel_id = interaction.data['values'][0]
@@ -76,10 +84,6 @@ async def showadmin(ctx):
         await ctx.send("You are not authorized to use this command.")
         return
     await handle_showadmin(ctx.message)
-
-@bot.command()
-async def setup(ctx):
-    await handle_setup(ctx.message)
 
 
 @bot.command()
@@ -175,7 +179,7 @@ async def checkGas(ctx):
 
 @bot.command()
 async def getMeGoo(ctx):
-    await ctx.send("Checking the Fuel Gauges of your Drills! This may take a moment...")
+    await ctx.send("Running System Check and updating Data... Please Wait")
     
     # Call the function to update the YAML file, passing the ctx argument
     await handle_setup(ctx)
@@ -184,20 +188,31 @@ async def getMeGoo(ctx):
 async def goohelp(ctx):
     await handle_help(ctx)
 
+@bot.command()
+async def spacegoblin(ctx):
+    await handle_spacegoblin(ctx)
 
 @bot.command()
 async def structure(ctx):
     await handle_structure(ctx)
 
+@bot.command()
+async def structureassets(ctx):
+    await handle_structureassets(ctx)
 
 @app.route('/oauth-callback')
 def oauth_callback():
-    # Extract the code from the query parameters
+    # Extract the code and state from the query parameters
     code = request.args.get('code')
     state = request.args.get('state')
 
     if not code or not state:
         return "Missing code or state parameter", 400
+
+    # Retrieve server_id from state
+    server_id = states.pop(state, None)
+    if not server_id:
+        return "Invalid or expired state", 400
 
     # Exchange the code for tokens
     token_url = 'https://login.eveonline.com/v2/oauth/token'
@@ -211,8 +226,12 @@ def oauth_callback():
         'client_id': CLIENT_ID,
         'client_secret': CLIENT_SECRET
     }
-    response = requests.post(token_url, headers=headers, data=data)
-    response_data = response.json()
+    try:
+        response = requests.post(token_url, headers=headers, data=data)
+        response.raise_for_status()
+        response_data = response.json()
+    except requests.exceptions.RequestException as e:
+        return f"Request error: {e}", 500
 
     if 'access_token' not in response_data:
         return f"Error obtaining tokens: {response_data.get('error_description', 'Unknown error')}", 500
@@ -222,12 +241,10 @@ def oauth_callback():
     refresh_token = response_data.get('refresh_token', None)
     expires_in = response_data.get('expires_in', None)
 
-    # Save the tokens
-    config.save_tokens(access_token, refresh_token, expires_in)
+    # Save the tokens for the specific server_id
+    save_tokens(server_id, access_token, refresh_token, expires_in)
 
     return render_template('oauth_callback.html')
-
-
 
     
 #### bot start, do not edit!

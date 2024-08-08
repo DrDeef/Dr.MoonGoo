@@ -1,6 +1,7 @@
 import logging
 import config
-from structurecommands import get_moon_drills, save_structure_info_to_yaml
+from config import save_server_structures
+from structurecommands import get_moon_drills
 from discord.ext import tasks
 from administration import refresh_token
 
@@ -8,20 +9,38 @@ from administration import refresh_token
 # Periodic task to refresh token every 5 minutes
 @tasks.loop(minutes=5)
 async def refresh_token_task():
-    await refresh_token()
+    server_id = config.get_config('server_id')  # Retrieve the server_id from your configuration
+
+    if not server_id:
+        logging.error("Server ID not found in the configuration.")
+        return
+
+    response = await refresh_token(server_id)
+    if response:
+        logging.info(f"Access token refreshed successfully for server {server_id}.")
+    else:
+        logging.error(f"Failed to refresh access token for server {server_id}.")
+
 
 # Periodic task to update moon drills every 30 minutes
 @tasks.loop(minutes=30)
 async def update_moondrills_task():
-    moon_drill_ids = await get_moon_drills()
+    server_id = 'your_server_id_here'  # Set your server ID here or get it dynamically
+
+    if not server_id:
+        logging.error("Server ID not found.")
+        return
+
+    moon_drill_ids = await get_moon_drills(server_id)
+    
     if moon_drill_ids:
-        logging.info(f"Moon drills updated: {moon_drill_ids}")
-        # Update the configuration with new moon drill IDs
-        config.set_config('metenox_moon_drill_ids', moon_drill_ids)
-        # Optionally, save the updated moon drill IDs to a file
-        await save_structure_info_to_yaml(moon_drill_ids)
+        logging.info(f"Moon drills updated for server {server_id}: {moon_drill_ids}")
+
+        # Save the updated moon drill IDs to the JSON file
+        await save_server_structures(moon_drill_ids, server_id)
     else:
-        logging.error("No moon drills found or an error occurred.")
+        logging.error(f"No moon drills found or an error occurred for server {server_id}.")
+
 
 # Load configuration and tokens
 config.load_config()

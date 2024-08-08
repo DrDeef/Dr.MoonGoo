@@ -5,6 +5,7 @@ import config
 from urllib.parse import quote
 from config import load_tokens, save_tokens
 import base64
+import json
 from datetime import datetime, timedelta
 
 
@@ -18,7 +19,6 @@ CLIENT_ID = config.get_config('eve_online_client_id', '')
 CLIENT_SECRET = config.get_config('eve_online_secret_key', '')
 CALLBACK_URL = config.get_config('eve_online_callback_url', '')
 CORPORATION_ID = config.get_config('corporation_id', '')
-MOON_DRILL_IDS = config.get_config('metenox_moon_drill_ids', [])
 
 
 # Use the updated methods and variables from config.py
@@ -26,33 +26,27 @@ tokens = config.tokens
 states = config.states
 
 
-
-async def get_access_token():
-    tokens = load_tokens()
-    logging.info(f"Tokens loaded in get_access_token: {tokens}")
-
-    if tokens and 'access_token' in tokens and not is_token_expired():
-        logging.info("Returning existing access token.")
+async def get_access_token(server_id):
+    tokens = config.get_server_tokens(server_id)
+    
+    # Check if there's a valid token already
+    if tokens and 'access_token' in tokens and not is_token_expired(tokens):
+        logging.info(f"Using existing access token for server {server_id}")
         return tokens['access_token']
     
+    # Refresh the token if expired or missing
     if tokens and 'refresh_token' in tokens:
-        logging.info("Attempting to refresh access token.")
-        new_tokens = await refresh_token()
-        if new_tokens:
-            save_tokens(
-                new_tokens.get('access_token', tokens.get('access_token')),
-                new_tokens.get('refresh_token', tokens.get('refresh_token')),
-                new_tokens.get('expires_in', 3600)
-            )
-            logging.info(f"New tokens saved: {new_tokens}")
-            return new_tokens.get('access_token')
+        logging.info(f"Refreshing access token for server {server_id}")
+        new_tokens = await refresh_token(server_id)
+        return new_tokens.get('access_token', None)
     
-    logging.error("No access token available and refresh token not found or refresh failed.")
+    # Handle the case where no refresh token is available
+    logging.error(f"No refresh token available for server {server_id}")
     return None
 
 
-def is_token_expired():
-    tokens = load_tokens()
+def is_token_expired(server_id):
+    tokens = config.get_server_tokens(server_id)
     if not tokens or 'created_at' not in tokens or 'expires_in' not in tokens:
         return True
     
@@ -62,15 +56,15 @@ def is_token_expired():
     
     return datetime.utcnow() > expiration_time
 
-async def refresh_token():
-    tokens = config.load_tokens()
+async def refresh_token(server_id):
+    tokens = config.get_server_tokens(server_id)
     
     if not tokens or 'refresh_token' not in tokens:
-        logging.error("No refresh token found. Cannot refresh access token.")
+        logging.error(f"No refresh token found for server {server_id}. Cannot refresh access token.")
         return {}
 
     refresh_token = tokens['refresh_token']
-    logging.info(f"Using refresh token: {refresh_token}")
+    logging.info(f"Using refresh token for server {server_id}: {refresh_token}")
 
     refresh_token_encoded = quote(refresh_token)
     data = f'grant_type=refresh_token&refresh_token={refresh_token_encoded}'
@@ -92,14 +86,15 @@ async def refresh_token():
                 response.raise_for_status()
                 response_data = await response.json()
                 
-                logging.info(f"Refresh response data: {response_data}")
+                logging.info(f"Refresh response data for server {server_id}: {response_data}")
 
                 if 'access_token' in response_data:
-                    logging.info(f"New access token: {response_data['access_token']}")
+                    logging.info(f"New access token for server {server_id}: {response_data['access_token']}")
+                    save_tokens(server_id, response_data['access_token'], response_data.get('refresh_token', refresh_token), response_data.get('expires_in', 3600))
                     return response_data
                 else:
-                    logging.error(f'Failed to refresh access token: {response_data.get("error_description", "No error description provided.")}')
+                    logging.error(f'Failed to refresh access token for server {server_id}: {response_data.get("error_description", "No error description provided.")}')
                     return {}
         except aiohttp.ClientError as e:
-            logging.error(f'Exception occurred while refreshing access token: {str(e)}')
+            logging.error(f'Exception occurred while refreshing access token for server {server_id}: {str(e)}')
             return {}
