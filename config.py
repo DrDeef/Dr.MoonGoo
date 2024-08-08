@@ -121,8 +121,6 @@ def load_server_structures():
 def save_server_structures(data):
     with open(server_structures_file, 'w') as file:
         json.dump(data, file, indent=4)
-   
-
 
 
 # Load configurations and tokens when the module is imported

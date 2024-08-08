@@ -187,8 +187,7 @@ async def handle_checkgas(ctx):
         if moon_drill_ids:
             server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
             # Save structure info in the JSON file
-            # Assuming that structure info is updated elsewhere or should be updated here
-            await update_structure_info(server_id, moon_drill_ids, server_structures)
+            await update_structure_info(server_id, moon_drill_ids)
             save_server_structures(server_structures)
             await ctx.send(f"Metenox Moondrills successfully updated.\n > Moondrill-ID's: \n > {moon_drill_ids}")
         else:
@@ -209,8 +208,8 @@ async def handle_checkgas(ctx):
         return
 
     for structure_id, assets_info in all_assets_info.items():
-        # Get structure name
-        structure_name = structure_info.get(structure_id, 'Unknown Structure')
+        # Ensure structure_id is treated as string when accessing structure_info
+        structure_name = structure_info.get(str(structure_id), 'Unknown Structure')
 
         # Prepare to aggregate asset quantities
         asset_totals = {
@@ -220,7 +219,7 @@ async def handle_checkgas(ctx):
 
         for asset in assets_info:
             type_id = asset.get('type_id')
-            quantity = asset.get('quantity')
+            quantity = asset.get('quantity', 0)
 
             if type_id == 81143:  # Type ID for Magmatic Gas
                 asset_totals['Magmatic Gas'] += quantity
