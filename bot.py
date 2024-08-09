@@ -144,17 +144,17 @@ async def selectalertchannel(ctx):
         view=view
     )
 
-@bot.command()
-async def GooAlert(ctx):
-    # Set the alert channel in the configuration
-    alert_channel_id = str(ctx.channel.id)
-    config.set_config('alert_channel_id', alert_channel_id)
-    
-    # Notify that the alert channel has been set
-    await ctx.send(f"Alert channel set to <#{alert_channel_id}>")
-
-    # Start the background scheduler
-    asyncio.create_task(run_alert_scheduler(bot))  # Pass the bot instance
+#@bot.command()
+#async def GooAlert(ctx):
+#    # Set the alert channel in the configuration
+#    alert_channel_id = str(ctx.channel.id)
+#    config.set_config('alert_channel_id', alert_channel_id)
+#    
+#    # Notify that the alert channel has been set
+#    await ctx.send(f"Alert channel set to <#{alert_channel_id}>")
+#
+#    # Start the background scheduler
+#    asyncio.create_task(run_alert_scheduler(bot))  # Pass the bot instance
 
 
 @bot.command()

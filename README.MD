@@ -1,4 +1,4 @@
-![Version](https://img.shields.io/badge/version-0.0.2-red) ![Docker Pulls](https://img.shields.io/docker/pulls/drdeef/drmoongoo) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/drdeef/Dr.MoonGoo?style=flat&color=green)
+![Version](https://img.shields.io/badge/version-0.1-green) ![Docker Pulls](https://img.shields.io/docker/pulls/drdeef/drmoongoo) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/drdeef/Dr.MoonGoo?style=flat&color=yellow)
 
 
 
@@ -19,7 +19,11 @@
 - **Goo Check**: Print out the amount of materials the drill has in its 'assets'.
 - **Administrative Commands**: Manage alert channels and update moon drill IDs with ease.
 
-## Setup
+## Invite the Bot to your server
+
+https://discord.com/oauth2/authorize?client_id=1242230305541197864
+
+## Standalone Setup:
 
 ### Dockerfile
 
@@ -88,15 +92,12 @@ Permission Integer
 Update the config.yaml to your needs:
 
 ```bash
-admin_channels: []
-alert_channel_id: null
 alert_threshold: 500
 corporation_id: 'CORP-ID'
 discord_bot_token: YOUR_DISCORD_BOT_TOKEN
 eve_online_callback_url: http://localhost:5005/oauth-callback
 eve_online_client_id: YOUR_EVE_ONLINE_CLIENT_ID
 eve_online_secret_key: YOUR_EVE_ONLINE_SECRET_KEY
-metenox_moon_drill_ids: []
 ```
 
 7. **First Startup Sequence**
@@ -105,7 +106,7 @@ metenox_moon_drill_ids: []
 - !getMeGoo: Will run the base setup.
   - Will update your Moondrill structures, Gas & Fuel Levels, and the Goo Assets.
 - !updatemoondrills: Update your Moondrill structures
-- !gooalert: Set the current channel to be your alert channel
+- !selectalertchannel: Select the channel you wanna be alerted to
 
 ## Magmatic Gas & Fuelblock Calculation
 
@@ -119,12 +120,11 @@ Calculation is based on ingame values
 - **!authenticate**: Authenticate the bot against the EvE Online ESI API
   - You need e.g. Director permissions ingame to check the structural assets
 - **!getMeGoo**: Will Setup basic parameters
-- **!setadmin**: Will setup the administrative channel
 - **!updatemoondrills**: Update your Moondrill Structures
-- **!debug**: Debug information about your ESI-token
 - **!checkGoo**: Print out every Asset within your Metenox Moon Drills.
 - **!checkGas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with a timer
-- **!gooalert**: Set the current channel as alerting channel and activate the scheduler.
+- **!selectalertchannel**: Select the channel you wanna be alerted to.
+- **!spacegoblin**: Guess who is a good spacegoblin?
 
 ## Example Bot Response
 
@@ -156,7 +156,6 @@ Happy drilling! 🚀
 ## Donate
 
 If you like the Bot, please consider donating ISK ingame to [PoorInternetGuy](https://evewho.com/character/2122580011)
-
 
 ## Terms<a name="terms"></a>
 
