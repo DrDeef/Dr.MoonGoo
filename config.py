@@ -11,6 +11,7 @@ states = {}
 config_file = 'config.yaml'
 tokens_file = 'tokens.json'
 server_structures_file = 'server_structures.json'
+alert_channel_file = 'alert_channels.json'
 
 def load_config():
     global config
@@ -109,6 +110,35 @@ def set_config(key, value, server_id=None):
 
     save_config(config)
 
+# Function to load the alert channels from the file
+def load_alert_channels():
+    if os.path.exists(alert_channel_file):
+        with open(alert_channel_file, 'r') as file:
+            return json.load(file)
+    return {}
+
+# Function to save the alert channels to the file
+def save_alert_channels(alert_channels):
+    with open(alert_channel_file, 'w') as file:
+        json.dump(alert_channels, file, indent=4)
+
+
+# Function to get the alert channel ID for a specific server
+def get_alert_channel(server_id):
+    alert_channels = load_alert_channels()
+    return alert_channels.get(str(server_id))
+
+# Example function to send a message to the alert channel of a specific server
+async def send_alert_message(bot, server_id, message):
+    alert_channel_id = get_alert_channel(server_id)
+    if alert_channel_id:
+        channel = bot.get_channel(int(alert_channel_id))
+        if channel:
+            await channel.send(message)
+        else:
+            print(f"Channel ID {alert_channel_id} not found.")
+    else:
+        print(f"No alert channel set for server ID {server_id}.")
 
 
 def load_server_structures():

@@ -54,18 +54,21 @@ async def handle_setup(message):
 
 
 async def handle_add_alert_channel(ctx):
-    # Retrieve the current channel ID
+    # Retrieve the current channel ID and server ID
     alert_channel_id = str(ctx.channel.id)
+    server_id = str(ctx.guild.id)
 
-    # Update the alert channel ID in the configuration
-    current_alert_channel_id = config.get_config('alert_channel_id')
-    if current_alert_channel_id:
-        # If there is already an alert channel set, notify the user
+    # Load the existing alert channels
+    alert_channels = config.load_alert_channels()
+
+    # Check if the server already has an alert channel set
+    if server_id in alert_channels:
+        current_alert_channel_id = alert_channels[server_id]
         await ctx.send(f"Alert channel is already set to <#{current_alert_channel_id}>")
     else:
-        # Set the new alert channel ID
-        config.set_config('alert_channel_id', alert_channel_id)
-        config.save_config()
+        # Set the new alert channel ID for this server
+        alert_channels[server_id] = alert_channel_id
+        config.save_alert_channels(alert_channels)
         await ctx.send(f"Alert channel set to <#{alert_channel_id}>")
 
 
@@ -287,10 +290,10 @@ async def handle_checkgas(ctx):
         
         # Format the response with Discord markdown
         gas_info += f"**{structure_name}**\n"
-        gas_info += f"__Magmatic Gas__: ***{magmatic_gas_amount}***\n"
-        gas_info += f"Gas runs out in: {magmatic_gas_depletion_time}\n"
-        gas_info += f"__Fuel Blocks__: ***{fuel_blocks_amount}***\n"
-        gas_info += f"Fuel runs out in: {fuel_blocks_depletion_time}\n"
+        gas_info += f"> __Magmatic Gas__: ***{magmatic_gas_amount}*** is left\n"
+        gas_info += f" Gas runs out in: {magmatic_gas_depletion_time}\n"
+        gas_info += f"> __Fuel Blocks__: ***{fuel_blocks_amount}*** are left\n"
+        gas_info += f" Fuel runs out in: {fuel_blocks_depletion_time}\n"
         gas_info += "\n"  # Add a newline for separation
 
     # Send message in chunks if necessary
@@ -390,8 +393,9 @@ async def handle_help(message):
         "Hello My Name is Dr. MoonGoo, here are some basic commands.\n\n"
         "**Common commands:**\n"
         "**!authenticate**: Authenticate the bot against the EvE Online ESI API\n"
-        "**!updatemoondrills**: Update your Moondrill Structures\n"
+        "**!selectalertchannel**: Select the channel where the alert scheduler will send messages to\n"
         "**!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with the date/time when it runs out.\n"
+        "**!checkGoo**: Prints the amount of Goo the Moondrills have collected till now.\n"
         "When setup with !GooAlert I will send you a message in a channel where you run the command if fuel runs out within the next 48 hours\n\n"
         "Feel free to open a GitHub issue here: https://github.com/DrDeef/Dr.MoonGoo"
     )

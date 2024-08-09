@@ -228,17 +228,3 @@ def load_moon_drill_ids(server_id):
     except json.JSONDecodeError:
         logging.error("Error decoding JSON from server_structures.json.")
         return []
-
-
-
-
-async def handle_help(message):
-    await message.channel.send(
-        "Hello My Name is Dr. MoonGoo, here are some basic commands.\n\n"
-        "**Common commands:**\n"
-        "**!authenticate**: Authenticate the bot against the EvE Online ESI API\n"
-        "**!updatemoondrills**: Update your Moondrill Structures\n"
-        "**!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with the date/time when it runs out.\n"
-        "When setup with !GooAlert I will send you a message in a channel where you run the command if fuel runs out within the next 48 hours\n\n"
-        "Feel free to open a GitHub issue here: https://github.com/DrDeef/Dr.MoonGoo"
-    )

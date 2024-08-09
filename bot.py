@@ -57,26 +57,34 @@ async def on_guild_join(guild):
     print(f'Joined new server: {guild.name} ({server_id})')
     # You can also log this information or handle it as needed
 
-
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
-    if interaction.custom_id == "select_alert_channel":
-        selected_channel_id = interaction.data['values'][0]
-        config.config['alert_channel_id'] = selected_channel_id
-        config.save_config()
-        await interaction.response.send_message(f"Alert channel set to <#{selected_channel_id}>", ephemeral=True)
+    if interaction.type == discord.InteractionType.component:  # Ensure it's a component interaction
+        if interaction.data.get("custom_id") == "select_alert_channel":
+            # Handle the select menu interaction
+            selected_channel_id = interaction.data.get("values", [])[0]
+            server_id = str(interaction.guild.id)  # Get the server ID
+            
+            # Save the alert channel ID with the server ID in your configuration or JSON file
+            alert_channels = config.load_alert_channels()
+            alert_channels[server_id] = selected_channel_id
+            config.save_alert_channels(alert_channels)
+
+            # Notify the user that the alert channel has been set
+            await interaction.response.send_message(f"Alert channel set to <#{selected_channel_id}>")
+
+            # Start the background scheduler (only start it if it's not already running)
+            if not any(task.get_name() == f"alert_scheduler_{server_id}" for task in asyncio.all_tasks()):
+                asyncio.create_task(run_alert_scheduler(bot, server_id), name=f"alert_scheduler_{server_id}")
 
 
 async def is_admin(ctx):
-    admin_role = get(ctx.guild.roles, name=config.config.get('admin_role', 'Admin'))
-    return admin_role in ctx.author.roles
+    # Get the list of admin roles from the config
+    admin_roles = config.config.get('admin_role', [])
 
-@bot.command()
-async def setadminchannel(ctx):
-    if not await is_admin(ctx):
-        await ctx.send("You are not authorized to use this command.")
-        return
-    await handle_setadmin(ctx.message)
+    # Check if any of the roles in admin_roles are present in the user's roles
+    return any(get(ctx.guild.roles, name=role_name) in ctx.author.roles for role_name in admin_roles)
+
 
 @bot.command()
 async def showadmin(ctx):
@@ -85,10 +93,6 @@ async def showadmin(ctx):
         return
     await handle_showadmin(ctx.message)
 
-
-@bot.command()
-async def addalertchannel(ctx):
-    await handle_add_alert_channel(ctx)  # Call the handler function
 
 @bot.command()
 async def selectalertchannel(ctx):
@@ -100,7 +104,28 @@ async def selectalertchannel(ctx):
         options=options,
         custom_id="select_alert_channel"
     )
+    
     view = View()
+
+    # This function will handle the selection
+    async def select_callback(interaction: discord.Interaction):
+        # Get the selected channel ID
+        selected_channel_id = interaction.data['values'][0]
+
+        # Save the alert channel ID with the server ID in your configuration or JSON file
+        alert_channels = config.load_alert_channels()
+        server_id = str(ctx.guild.id)
+        alert_channels[server_id] = selected_channel_id
+        config.save_alert_channels(alert_channels)
+
+        # Notify the user that the alert channel has been set
+        await interaction.response.send_message(f"Alert channel set to <#{selected_channel_id}>")
+
+        # Start the background scheduler (only start it if it's not already running)
+        if not any(task.get_name() == f"alert_scheduler_{server_id}" for task in asyncio.all_tasks()):
+            asyncio.create_task(run_alert_scheduler(bot, server_id), name=f"alert_scheduler_{server_id}")
+
+    select.callback = select_callback
     view.add_item(select)
 
     await ctx.send(
@@ -109,18 +134,7 @@ async def selectalertchannel(ctx):
     )
 
 @bot.command()
-async def refreshToken(ctx):
-    server_id = str(ctx.guild.id)  # Or however you retrieve the server_id
-    response = await refresh_token(server_id)
-    if response:
-        await ctx.send(f"Token refreshed successfully for server {server_id}.")
-    else:
-        await ctx.send(f"Failed to refresh token for server {server_id}.")
-
-
-
-@bot.command()
-async def gooalert(ctx):
+async def GooAlert(ctx):
     # Set the alert channel in the configuration
     alert_channel_id = str(ctx.channel.id)
     config.set_config('alert_channel_id', alert_channel_id)
@@ -131,12 +145,6 @@ async def gooalert(ctx):
     # Start the background scheduler
     asyncio.create_task(run_alert_scheduler(bot))  # Pass the bot instance
 
-@bot.command()
-async def debug(ctx):
-    if not await is_admin(ctx):
-        await ctx.send("You are not authorized to use this command.")
-        return
-    await handle_debug(ctx.message)
 
 @bot.command()
 async def authenticate(ctx):
@@ -144,11 +152,6 @@ async def authenticate(ctx):
         await ctx.send("You are not authorized to use this command.")
         return
     await handle_authenticate(ctx)
-
-@bot.command()
-async def setadmin(ctx):
-    await handle_setadmin(ctx)
-
 
 @bot.command()
 async def updatemoondrills(ctx):
@@ -178,6 +181,9 @@ async def checkGas(ctx):
 
 @bot.command()
 async def getMeGoo(ctx):
+    if not await is_admin(ctx):
+        await ctx.send("You are not authorized to use this command.")
+        return
     await ctx.send("Running System Check and updating Data... Please Wait")
     
     # Call the function to update the YAML file, passing the ctx argument
@@ -191,13 +197,13 @@ async def goohelp(ctx):
 async def spacegoblin(ctx):
     await handle_spacegoblin(ctx)
 
-@bot.command()
-async def structure(ctx, *, structure_id: str):
-    await handle_structure(ctx)
+#@bot.command()
+#async def structure(ctx, *, structure_id: str):
+#    await handle_structure(ctx)
 
-@bot.command()
-async def structureassets(ctx):
-    await handle_structureassets(ctx)
+#@bot.command()
+#async def structureassets(ctx):
+#    await handle_structureassets(ctx)
 
 @app.route('/oauth-callback')
 def oauth_callback():
