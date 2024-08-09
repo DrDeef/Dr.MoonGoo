@@ -110,14 +110,12 @@ async def selectalertchannel(ctx):
 
 @bot.command()
 async def refreshToken(ctx):
-    # Notify the user that the refresh process is starting
-    await ctx.send("Attempting to refresh access token...")
-    
-    # Call the refresh_token function
-    await refresh_token()
-    
-    # Notify the user that the refresh process has been attempted
-    await ctx.send("Token refresh attempted. Check logs for details.")
+    server_id = str(ctx.guild.id)  # Or however you retrieve the server_id
+    response = await refresh_token(server_id)
+    if response:
+        await ctx.send(f"Token refreshed successfully for server {server_id}.")
+    else:
+        await ctx.send(f"Failed to refresh token for server {server_id}.")
 
 
 
@@ -150,6 +148,7 @@ async def authenticate(ctx):
 @bot.command()
 async def setadmin(ctx):
     await handle_setadmin(ctx)
+
 
 @bot.command()
 async def updatemoondrills(ctx):
@@ -193,7 +192,7 @@ async def spacegoblin(ctx):
     await handle_spacegoblin(ctx)
 
 @bot.command()
-async def structure(ctx):
+async def structure(ctx, *, structure_id: str):
     await handle_structure(ctx)
 
 @bot.command()
@@ -252,6 +251,8 @@ if __name__ == "__main__":
     try:
         config.load_config()
         config.load_tokens()  # Ensure tokens are loaded
+        server_ids = config.get_all_server_ids()
+        print("Server IDs:", server_ids)
 
         flask_thread = threading.Thread(target=run_flask)
         flask_thread.start()

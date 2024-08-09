@@ -3,7 +3,7 @@ import aiohttp
 import logging
 import config
 from urllib.parse import quote
-from config import load_tokens, save_tokens
+from config import save_tokens
 import base64
 import json
 from datetime import datetime, timedelta
@@ -64,7 +64,7 @@ async def refresh_token(server_id):
         return {}
 
     refresh_token = tokens['refresh_token']
-    logging.info(f"Using refresh token for server {server_id}: {refresh_token}")
+    ##debugenable logging.info(f"Using refresh token for server {server_id}: {refresh_token}")
 
     refresh_token_encoded = quote(refresh_token)
     data = f'grant_type=refresh_token&refresh_token={refresh_token_encoded}'
@@ -86,10 +86,10 @@ async def refresh_token(server_id):
                 response.raise_for_status()
                 response_data = await response.json()
                 
-                logging.info(f"Refresh response data for server {server_id}: {response_data}")
+                ###debug logging.info(f"Refresh response data for server {server_id}: {response_data}")
 
                 if 'access_token' in response_data:
-                    logging.info(f"New access token for server {server_id}: {response_data['access_token']}")
+                    ###debug logging.info(f"New access token for server {server_id}: {response_data['access_token']}")
                     save_tokens(server_id, response_data['access_token'], response_data.get('refresh_token', refresh_token), response_data.get('expires_in', 3600))
                     return response_data
                 else:

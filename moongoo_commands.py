@@ -1,23 +1,14 @@
 import discord
-import requests
-import logging
-import yaml
 import json
-import uuid
-import config
-import moongoo
-import time
+import logging
+import aiohttp
+from collections import defaultdict
+from datetime import datetime, timedelta
+from config import save_server_structures
 from structurecommands import get_all_structure_assets, get_moon_drills
 from moongoo import get_moon_goo_items
-from config import save_server_structures
-from datetime import datetime, timedelta
-from collections import defaultdict
 
 logging.basicConfig(level=logging.INFO)
-
-
-### end remove.
-
 
 async def save_moon_goo_to_json(moon_drill_assets):
     try:
@@ -38,7 +29,7 @@ async def load_moon_goo_from_json():
             return moon_goo_items
     except FileNotFoundError:
         return {}
-    
+
 async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
     moon_goo_items = get_moon_goo_items()
     logging.info(f"Loaded moon goo items: {moon_goo_items}")
@@ -64,7 +55,7 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
 
     # Get all moon drill structure IDs from the configuration
     moon_drill_ids = server_structures.get(server_id, {}).get('metenox_moon_drill_ids', [])
-    
+
     if not moon_drill_ids:
         moon_drill_ids = await get_moon_drills()
         if moon_drill_ids:
@@ -83,7 +74,7 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
     moon_drill_assets = defaultdict(lambda: defaultdict(int))
     
     async def fetch_and_aggregate_assets(ids):
-        all_assets_info = await get_all_structure_assets(ids)
+        all_assets_info = await get_all_structure_assets(ids, server_id)  # Correct argument order
         if isinstance(all_assets_info, str):
             await ctx.send(all_assets_info)
             return
@@ -122,13 +113,7 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
         response_message += "\n"  # Add a newline for separation
 
     # Save the aggregated moon drill assets to JSON
-    try:
-        save_data = {structure_id: dict(data) for structure_id, data in moon_drill_assets.items()}
-        with open('metenox_goo.json', 'w') as file:
-            json.dump(save_data, file, indent=4)  # Save as JSON
-        logging.info(f"Saved aggregated moon goo data to JSON: {save_data}")
-    except IOError as e:
-        logging.error(f"Error saving moon goo info to JSON file: {e}")
+    await save_moon_goo_to_json(moon_drill_assets)
 
     # Send message in chunks if necessary
     if len(response_message) > 2000:
@@ -138,15 +123,14 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
     else:
         await ctx.send(response_message)
 
-
 async def update_moon_goo_items_in_json():
     moon_goo_items = get_moon_goo_items()
     logging.info(f"Loaded moon goo items: {moon_goo_items}")
 
     moon_drill_ids = config.get_config('metenox_moon_drill_ids', [])
     logging.info(f"Loaded moon drill IDs: {moon_drill_ids}")
-    
-    all_assets_info = await get_all_structure_assets(moon_drill_ids)
+
+    all_assets_info = await get_all_structure_assets(moon_drill_ids, config.get_config('server_id'))  # Pass server_id here
     
     if isinstance(all_assets_info, str):
         logging.error(all_assets_info)
@@ -173,9 +157,4 @@ async def update_moon_goo_items_in_json():
     if not aggregated_data:
         logging.info("No moon goo data found.")
     else:
-        try:
-            with open('metenox_goo.json', 'w') as file:
-                json.dump(aggregated_data, file, indent=4)
-            logging.info("Moon goo items updated successfully!")
-        except IOError as e:
-            logging.error(f"Error saving moon goo info to JSON file: {e}")
+        await save_moon_goo_to_json(aggregated_data)

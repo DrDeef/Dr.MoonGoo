@@ -110,22 +110,42 @@ async def handle_update_moondrills(ctx):
 
     # Fetch the new moon drill IDs
     moon_drill_ids = await get_moon_drills(server_id)
-    
+
     if moon_drill_ids:
         # Load existing server structures
         server_structures = load_server_structures()
-        
+
+        # Debugging output
+        print(f"Type of server_structures: {type(server_structures)}")
+        print(f"Contents of server_structures: {server_structures}")
+
+        # Ensure server_structures is a dictionary
+        if not isinstance(server_structures, dict):
+            logging.error(f"Expected server_structures to be a dict, got {type(server_structures)} instead.")
+            await ctx.send("An internal error occurred. Please try again later.")
+            return
+
         # Update the server's moon drill IDs
         if server_id not in server_structures:
             server_structures[server_id] = {'metenox_moon_drill_ids': moon_drill_ids, 'structure_info': {}}
         else:
             server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
-        
+
         # Save the updated server structures to JSON
-        save_server_structures(server_structures)
+        try:
+            save_server_structures(server_structures, server_id)
+        except ValueError as ve:
+            logging.error(f"Error in save_server_structures: {ve}")
+            await ctx.send("Failed to save server structures. Please try again later.")
+            return
 
         # Fetch and update structure information
-        await update_structure_info(server_id, moon_drill_ids)
+        try:
+            await update_structure_info(server_id, moon_drill_ids)
+        except Exception as e:
+            logging.error(f"Error updating structure info: {e}")
+            await ctx.send("Failed to update structure information. Please try again later.")
+            return
 
         # Reload the updated structure info
         server_structures = load_server_structures()
@@ -141,20 +161,38 @@ async def handle_update_moondrills(ctx):
     else:
         # Ensure the server entry is present with an empty list if no IDs are found
         server_structures = load_server_structures()
+
+        # Debugging output
+        print(f"Type of server_structures: {type(server_structures)}")
+        print(f"Contents of server_structures: {server_structures}")
+
+        if not isinstance(server_structures, dict):
+            logging.error(f"Expected server_structures to be a dict, got {type(server_structures)} instead.")
+            await ctx.send("An internal error occurred. Please try again later.")
+            return
+
         if server_id not in server_structures:
             server_structures[server_id] = {'metenox_moon_drill_ids': [], 'structure_info': {}}
         else:
             server_structures[server_id]['metenox_moon_drill_ids'] = []
-        
+
         # Save the updated server structures to JSON
-        save_server_structures(server_structures)
+        try:
+            await save_server_structures(server_structures, server_id)
+        except ValueError as ve:
+            logging.error(f"Error in save_server_structures: {ve}")
+            await ctx.send("Failed to save server structures. Please try again later.")
 
         await ctx.send("No moon drills found or an error occurred.")
 
 
-async def handle_structure(message):
-    # Extract the structure ID from the message content
-    structure_id = message.content.split()[1]
+async def handle_structure(ctx):
+    # Extract the structure ID from the command arguments
+    if len(ctx.args) < 1:
+        await ctx.send("Please provide a structure ID.")
+        return
+    
+    structure_id = ctx.args[0]
     
     # Load existing server structures
     server_structures = load_server_structures()
@@ -166,7 +204,7 @@ async def handle_structure(message):
             structure_info = server_data['structure_info'][structure_id]
             break
     
-    await message.channel.send(structure_info if structure_info != 'Structure info not found.' else f"Structure ID {structure_id} not found.")
+    await ctx.send(structure_info if structure_info != 'Structure info not found.' else f"Structure ID {structure_id} not found.")
 
 async def handle_checkgas(ctx):
     server_id = str(ctx.guild.id)  # Get the server ID from the context
@@ -175,7 +213,7 @@ async def handle_checkgas(ctx):
     server_structures = load_server_structures()
 
     if server_id not in server_structures:
-        await ctx.send("Server ID not found in the configuration.")
+        await ctx.send(".")
         return
 
     structure_info = server_structures[server_id].get('structure_info', {})

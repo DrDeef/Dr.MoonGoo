@@ -112,16 +112,45 @@ def set_config(key, value, server_id=None):
 
 
 def load_server_structures():
-    if not os.path.exists(server_structures_file):
+    """Load the server structures from the JSON file."""
+    try:
+        with open(server_structures_file, 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
         return {}
-    with open(server_structures_file, 'r') as file:
-        return json.load(file)
+    except json.JSONDecodeError as e:
+        logging.error(f"Error decoding JSON from file: {e}")
+        return {}
     
 
-def save_server_structures(data):
-    with open(server_structures_file, 'w') as file:
-        json.dump(data, file, indent=4)
+def save_server_structures(server_structures, server_id):
+    """Save the server structures to the JSON file."""
+    if not isinstance(server_structures, dict):
+        raise ValueError("server_structures must be a dictionary.")
 
+    try:
+        with open(server_structures_file, 'w') as file:
+            json.dump(server_structures, file, indent=4)
+    except IOError as e:
+        logging.error(f"Error saving server structures to JSON file: {e}")
+        raise
+
+def get_all_server_ids():
+    # Try to load server structures first
+    server_structures = load_server_structures()
+    
+    # Check if server_structures is not empty and contains keys
+    if isinstance(server_structures, dict) and server_structures:
+        return list(server_structures.keys())
+    
+    # If server_structures is empty or not valid, load from tokens file
+    tokens = load_tokens()
+    
+    if isinstance(tokens, dict) and tokens:
+        return list(tokens.keys())
+    
+    # If both are empty, return an empty list
+    return []
 
 # Load configurations and tokens when the module is imported
 load_config()
