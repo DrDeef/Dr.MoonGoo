@@ -1,17 +1,15 @@
-import discord
-import requests
 import logging
 import yaml
 import json
 import uuid
 import config
 import moongoo
-import time
+import os
 from moongoo_commands import handle_fetch_moon_goo_assets
-from config import load_tokens, save_tokens
+from config import load_tokens, save_server_structures, load_server_structures
 from datetime import datetime, timedelta
 from collections import defaultdict
-from structurecommands import get_all_structure_assets, get_moon_drills, get_structure_info
+from structurecommands import get_all_structure_assets, get_moon_drills, update_structure_info
 
 logging.basicConfig(level=logging.INFO)
 
@@ -56,18 +54,21 @@ async def handle_setup(message):
 
 
 async def handle_add_alert_channel(ctx):
-    # Retrieve the current channel ID
+    # Retrieve the current channel ID and server ID
     alert_channel_id = str(ctx.channel.id)
+    server_id = str(ctx.guild.id)
 
-    # Update the alert channel ID in the configuration
-    current_alert_channel_id = config.get_config('alert_channel_id')
-    if current_alert_channel_id:
-        # If there is already an alert channel set, notify the user
+    # Load the existing alert channels
+    alert_channels = config.load_alert_channels()
+
+    # Check if the server already has an alert channel set
+    if server_id in alert_channels:
+        current_alert_channel_id = alert_channels[server_id]
         await ctx.send(f"Alert channel is already set to <#{current_alert_channel_id}>")
     else:
-        # Set the new alert channel ID
-        config.set_config('alert_channel_id', alert_channel_id)
-        config.save_config()
+        # Set the new alert channel ID for this server
+        alert_channels[server_id] = alert_channel_id
+        config.save_alert_channels(alert_channels)
         await ctx.send(f"Alert channel set to <#{alert_channel_id}>")
 
 
@@ -75,8 +76,9 @@ def generate_state():
     return str(uuid.uuid4())
 
 async def handle_authenticate(message):
-    state = generate_state()
-    states[state] = True
+    server_id = message.guild.id  # Get the server ID from the message's guild
+    state = generate_state()  # Generate a new state
+    states[state] = server_id  # Store the server ID associated with the state
 
     auth_url = (
         f"https://login.eveonline.com/v2/oauth/authorize/?response_type=code"
@@ -106,71 +108,149 @@ async def handle_showadmin(message):
     await message.channel.send(f"Current admin channels: {admin_channels}")
 
 async def handle_update_moondrills(ctx):
-    from structurecommands import save_structure_info_to_yaml
+    server_id = str(ctx.guild.id)  # Get server_id from the context
     await ctx.send("Updating moon drills... Please wait.... \n \n")
-    
-    moon_drill_ids = await get_moon_drills()
-    
-    if moon_drill_ids:
-        # Update the configuration with new moon drill IDs
-        config.set_config('metenox_moon_drill_ids', moon_drill_ids)
-        
-        # Save structure info to YAML
-        await save_structure_info_to_yaml(moon_drill_ids)
 
-        await ctx.send(f"Metenox Moondrills successfully updated.\n > Moondrill-ID's: \n > {moon_drill_ids}")
-        #await ctx.send(f"Updated moon drill IDs: {moon_drill_ids}")
+    # Fetch the new moon drill IDs
+    moon_drill_ids = await get_moon_drills(server_id)
+
+    if moon_drill_ids:
+        # Load existing server structures
+        server_structures = load_server_structures()
+
+        # Debugging output
+        print(f"Type of server_structures: {type(server_structures)}")
+        print(f"Contents of server_structures: {server_structures}")
+
+        # Ensure server_structures is a dictionary
+        if not isinstance(server_structures, dict):
+            logging.error(f"Expected server_structures to be a dict, got {type(server_structures)} instead.")
+            await ctx.send("An internal error occurred. Please try again later.")
+            return
+
+        # Update the server's moon drill IDs
+        if server_id not in server_structures:
+            server_structures[server_id] = {'metenox_moon_drill_ids': moon_drill_ids, 'structure_info': {}}
+        else:
+            server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
+
+        # Save the updated server structures to JSON
+        try:
+            save_server_structures(server_structures, server_id)
+        except ValueError as ve:
+            logging.error(f"Error in save_server_structures: {ve}")
+            await ctx.send("Failed to save server structures. Please try again later.")
+            return
+
+        # Fetch and update structure information
+        try:
+            await update_structure_info(server_id, moon_drill_ids)
+        except Exception as e:
+            logging.error(f"Error updating structure info: {e}")
+            await ctx.send("Failed to update structure information. Please try again later.")
+            return
+
+        # Reload the updated structure info
+        server_structures = load_server_structures()
+        structure_info = server_structures.get(server_id, {}).get('structure_info', {})
+
+        # Prepare the response with structure names and IDs
+        response_message = "Metenox Moondrills successfully updated.\n"
+        for moon_drill_id in moon_drill_ids:
+            structure_name = structure_info.get(str(moon_drill_id), 'Unknown Structure')
+            response_message += f"{moon_drill_id} - {structure_name}\n"
+
+        await ctx.send(response_message)
     else:
-        # Ensure the configuration still has an empty list if no IDs are found
-        config.set_config('metenox_moon_drill_ids', [])
+        # Ensure the server entry is present with an empty list if no IDs are found
+        server_structures = load_server_structures()
+
+        # Debugging output
+        print(f"Type of server_structures: {type(server_structures)}")
+        print(f"Contents of server_structures: {server_structures}")
+
+        if not isinstance(server_structures, dict):
+            logging.error(f"Expected server_structures to be a dict, got {type(server_structures)} instead.")
+            await ctx.send("An internal error occurred. Please try again later.")
+            return
+
+        if server_id not in server_structures:
+            server_structures[server_id] = {'metenox_moon_drill_ids': [], 'structure_info': {}}
+        else:
+            server_structures[server_id]['metenox_moon_drill_ids'] = []
+
+        # Save the updated server structures to JSON
+        try:
+            await save_server_structures(server_structures, server_id)
+        except ValueError as ve:
+            logging.error(f"Error in save_server_structures: {ve}")
+            await ctx.send("Failed to save server structures. Please try again later.")
+
         await ctx.send("No moon drills found or an error occurred.")
 
 
-async def handle_structure(message):
-    structure_id = message.content.split()[1]
-    structure_info = await get_structure_info(structure_id)
-    await message.channel.send(structure_info)
+async def handle_structure(ctx):
+    # Extract the structure ID from the command arguments
+    if len(ctx.args) < 1:
+        await ctx.send("Please provide a structure ID.")
+        return
+    
+    structure_id = ctx.args[0]
+    
+    # Load existing server structures
+    server_structures = load_server_structures()
+    
+    # Check if the structure ID is present in the structure_info of any server
+    structure_info = 'Structure info not found.'
+    for server_data in server_structures.values():
+        if structure_id in server_data.get('structure_info', {}):
+            structure_info = server_data['structure_info'][structure_id]
+            break
+    
+    await ctx.send(structure_info if structure_info != 'Structure info not found.' else f"Structure ID {structure_id} not found.")
 
-async def handle_checkgas(message):
-    from structurecommands import load_structure_info_from_yaml, save_structure_info_to_yaml
-    # Load structure info from YAML file
-    try:
-        with open('structure_info.yaml', 'r') as file:
-            structure_info = yaml.safe_load(file) or {}
-    except FileNotFoundError:
-        structure_info = {}
-        await message.channel.send("Structure info file not found. Please ensure 'structure_info.yaml' is present.")
+async def handle_checkgas(ctx):
+    server_id = str(ctx.guild.id)  # Get the server ID from the context
+
+    # Load server structures from JSON file
+    server_structures = load_server_structures()
+
+    if server_id not in server_structures:
+        await ctx.send(".")
         return
 
-    # Get all moon drill structure IDs from the configuration
-    moon_drill_ids = config.get_config('metenox_moon_drill_ids', [])
+    structure_info = server_structures[server_id].get('structure_info', {})
+    moon_drill_ids = server_structures[server_id].get('metenox_moon_drill_ids', [])
 
     # Update moon drills and structure info if the list is empty
     if not moon_drill_ids:
-        moon_drill_ids = await get_moon_drills()
+        moon_drill_ids = await get_moon_drills(server_id)
         if moon_drill_ids:
-            config.set_config('metenox_moon_drill_ids', moon_drill_ids)
-            await save_structure_info_to_yaml(moon_drill_ids)
+            server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
+            # Save structure info in the JSON file
+            await update_structure_info(server_id, moon_drill_ids)
+            save_server_structures(server_structures)
+            await ctx.send(f"Metenox Moondrills successfully updated.\n > Moondrill-ID's: \n > {moon_drill_ids}")
         else:
-            await message.channel.send("No moon drills found or an error occurred.")
+            await ctx.send("No moon drills found or an error occurred.")
             return
 
     # Prepare to fetch and process asset information
     gas_info = ""
-    all_assets_info = await get_all_structure_assets(moon_drill_ids)
+    all_assets_info = await get_all_structure_assets(moon_drill_ids, server_id)
 
     if isinstance(all_assets_info, str):
-        await message.channel.send(all_assets_info)
+        await ctx.send(all_assets_info)
         return
 
     if isinstance(all_assets_info, list):  # Handle list if returned
         logging.error("Unexpected data format received: list")
-        await message.channel.send("Unexpected data format received.")
+        await ctx.send("Unexpected data format received.")
         return
 
     for structure_id, assets_info in all_assets_info.items():
-        # Get structure name
-        structure_name = structure_info.get(structure_id, 'Unknown Structure')
+        # Ensure structure_id is treated as string when accessing structure_info
+        structure_name = structure_info.get(str(structure_id), 'Unknown Structure')
 
         # Prepare to aggregate asset quantities
         asset_totals = {
@@ -180,7 +260,7 @@ async def handle_checkgas(message):
 
         for asset in assets_info:
             type_id = asset.get('type_id')
-            quantity = asset.get('quantity')
+            quantity = asset.get('quantity', 0)
 
             if type_id == 81143:  # Type ID for Magmatic Gas
                 asset_totals['Magmatic Gas'] += quantity
@@ -198,7 +278,7 @@ async def handle_checkgas(message):
 
             days, remainder = divmod(remaining_time.total_seconds(), 86400)
             hours, remainder = divmod(remainder, 3600)
-            minutes, seconds = divmod(remainder, 60)
+            minutes, _ = divmod(remainder, 60)
 
             return f"> {depletion_time.strftime('%Y-%m-%d %H:%M:%S')} UTC - {int(days)} Days {int(hours)} Hours remaining"
 
@@ -210,40 +290,56 @@ async def handle_checkgas(message):
         
         # Format the response with Discord markdown
         gas_info += f"**{structure_name}**\n"
-        gas_info += f"__Magmatic Gas__: ***{asset_totals['Magmatic Gas']}***\n"
-        gas_info += f"Gas runs out in: {magmatic_gas_depletion_time}\n"
-        gas_info += f"__Fuel Blocks__: ***{asset_totals['Fuel Blocks']}***\n"
-        gas_info += f"Fuel runs out in: {fuel_blocks_depletion_time}\n"
+        gas_info += f"> __Magmatic Gas__: ***{magmatic_gas_amount}*** is left\n"
+        gas_info += f" Gas runs out in: {magmatic_gas_depletion_time}\n"
+        gas_info += f"> __Fuel Blocks__: ***{fuel_blocks_amount}*** are left\n"
+        gas_info += f" Fuel runs out in: {fuel_blocks_depletion_time}\n"
         gas_info += "\n"  # Add a newline for separation
 
     # Send message in chunks if necessary
     if len(gas_info) > 2000:
         chunks = [gas_info[i:i + 2000] for i in range(0, len(gas_info), 2000)]
         for chunk in chunks:
-            await message.channel.send(chunk)
+            await ctx.send(chunk)
     else:
-        await message.channel.send(gas_info)
+        await ctx.send(gas_info)
+
 
 
 async def handle_structureassets(ctx):
-    # Load structure info from YAML file
+    # Define the JSON file path
+    server_structures_file = 'server_structures.json'
+
+    # Load structure info from JSON file
     try:
-        with open('structure_info.yaml', 'r') as file:
-            structure_info = yaml.safe_load(file) or {}
+        with open(server_structures_file, 'r') as file:
+            server_structures = json.load(file)
     except FileNotFoundError:
-        structure_info = {}
-        await ctx.send("Structure info file not found. Please ensure 'structure_info.yaml' is present.")
+        logging.error(f"File {server_structures_file} not found.")
+        await ctx.send(f"Server structures file not found. Please ensure '{server_structures_file}' is present.")
+        return
+    except json.JSONDecodeError:
+        logging.error(f"Error decoding JSON from file {server_structures_file}.")
+        await ctx.send(f"Error reading '{server_structures_file}'. Please ensure the file is correctly formatted.")
         return
 
-    # Get all moon drill structure IDs from the configuration
-    moon_drill_ids = config.get('metenox_moon_drill_ids', [])
+    # Get the server ID from the context
+    server_id = str(ctx.guild.id)
+    
+    # Check if the server ID is in the loaded data
+    if server_id not in server_structures:
+        await ctx.send(f"No data found for server ID {server_id}.")
+        return
+    
+    # Access moon drill structure IDs from the server structures
+    moon_drill_ids = server_structures[server_id].get('metenox_moon_drill_ids', [])
     
     if not moon_drill_ids:
-        await ctx.send("No moon drill IDs found in the configuration.")
+        await ctx.send("No moon drill IDs found for the server.")
         return
 
     # Fetch assets information for all moon drills
-    all_assets_info = await get_all_structure_assets(moon_drill_ids)
+    all_assets_info = await get_all_structure_assets(moon_drill_ids, server_id)
 
     if isinstance(all_assets_info, str):
         await ctx.send(all_assets_info)
@@ -255,8 +351,8 @@ async def handle_structureassets(ctx):
 
     response = ""
     for structure_id, assets_info in all_assets_info.items():
-        # Get structure name
-        structure_name = structure_info.get(structure_id, 'Unknown Structure')
+        # Get structure name from server structures
+        structure_name = server_structures[server_id]['structure_info'].get(str(structure_id), 'Unknown Structure')
 
         # Prepare to aggregate asset quantities
         asset_totals = {name: 0 for name in moongoo.get_moon_goo_items().values()}
@@ -297,8 +393,18 @@ async def handle_help(message):
         "Hello My Name is Dr. MoonGoo, here are some basic commands.\n\n"
         "**Common commands:**\n"
         "**!authenticate**: Authenticate the bot against the EvE Online ESI API\n"
-        "**!updatemoondrills**: Update your Moondrill Structures\n"
+        "**!selectalertchannel**: Select the channel where the alert scheduler will send messages to\n"
         "**!checkgas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with the date/time when it runs out.\n"
+        "**!checkGoo**: Prints the amount of Goo the Moondrills have collected till now.\n"
         "When setup with !GooAlert I will send you a message in a channel where you run the command if fuel runs out within the next 48 hours\n\n"
         "Feel free to open a GitHub issue here: https://github.com/DrDeef/Dr.MoonGoo"
+    )
+
+
+
+async def handle_spacegoblin(message):
+    await message.channel.send(
+        "**Guess who is a good Spacegoblin?**.\n\n"
+        "Not you, since you are not an Evil Space Goblin\n"
+        ";....;"
     )
