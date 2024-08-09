@@ -110,17 +110,31 @@ def set_config(key, value, server_id=None):
 
     save_config(config)
 
-# Function to load the alert channels from the file
 def load_alert_channels():
-    if os.path.exists(alert_channel_file):
+    """Load alert channels from a JSON file."""
+    if not os.path.exists(alert_channel_file):
+        # If file doesn't exist, return an empty dictionary
+        return {}
+    
+    try:
         with open(alert_channel_file, 'r') as file:
-            return json.load(file)
-    return {}
+            data = file.read().strip()  # Read and strip any extra whitespace
+            if not data:
+                # If file is empty, return an empty dictionary
+                return {}
+            return json.loads(data)
+    except (IOError, json.JSONDecodeError) as e:
+        # Log the error and return an empty dictionary
+        logging.error(f"Error loading alert channels: {e}")
+        return {}
 
-# Function to save the alert channels to the file
 def save_alert_channels(alert_channels):
-    with open(alert_channel_file, 'w') as file:
-        json.dump(alert_channels, file, indent=4)
+    """Save alert channels to a JSON file."""
+    try:
+        with open(alert_channel_file, 'w') as file:
+            json.dump(alert_channels, file, indent=4)
+    except IOError as e:
+        logging.error(f"Error saving alert channels: {e}")
 
 
 # Function to get the alert channel ID for a specific server

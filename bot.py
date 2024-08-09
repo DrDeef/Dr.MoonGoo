@@ -97,7 +97,16 @@ async def showadmin(ctx):
 @bot.command()
 async def selectalertchannel(ctx):
     channels = ctx.guild.text_channels
-    options = [discord.SelectOption(label=channel.name, value=str(channel.id)) for channel in channels]
+    if not channels:
+        await ctx.send("No text channels found in this server.")
+        return
+
+    # Limit the number of options to 25
+    options = [discord.SelectOption(label=channel.name, value=str(channel.id)) for channel in channels[:25]]
+
+    if not options:
+        await ctx.send("No text channels available for selection.")
+        return
 
     select = Select(
         placeholder="Choose a channel...",
@@ -107,10 +116,12 @@ async def selectalertchannel(ctx):
     
     view = View()
 
-    # This function will handle the selection
     async def select_callback(interaction: discord.Interaction):
-        # Get the selected channel ID
-        selected_channel_id = interaction.data['values'][0]
+        if interaction.user != ctx.author:
+            await interaction.response.send_message("You are not allowed to use this menu.", ephemeral=True)
+            return
+        
+        selected_channel_id = interaction.data.get("values", [])[0]  # Get the selected channel ID
 
         # Save the alert channel ID with the server ID in your configuration or JSON file
         alert_channels = config.load_alert_channels()
@@ -118,8 +129,8 @@ async def selectalertchannel(ctx):
         alert_channels[server_id] = selected_channel_id
         config.save_alert_channels(alert_channels)
 
-        # Notify the user that the alert channel has been set
-        await interaction.response.send_message(f"Alert channel set to <#{selected_channel_id}>")
+        # Respond to the interaction with a confirmation message
+        await interaction.response.send_message(f"Alert channel set to <#{selected_channel_id}>", ephemeral=True)
 
         # Start the background scheduler (only start it if it's not already running)
         if not any(task.get_name() == f"alert_scheduler_{server_id}" for task in asyncio.all_tasks()):

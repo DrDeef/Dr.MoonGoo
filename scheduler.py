@@ -22,17 +22,7 @@ last_alert_times = {
     'fuel_blocks': {}
 }
 
-# Load alert channels from JSON file
-def load_alert_channels():
-    if os.path.exists(ALERT_CHANNELS_FILE):
-        with open(ALERT_CHANNELS_FILE, 'r') as file:
-            return json.load(file)
-    return {}
 
-# Save alert channels to JSON file
-def save_alert_channels(alert_channels):
-    with open(ALERT_CHANNELS_FILE, 'w') as file:
-        json.dump(alert_channels, file, indent=4)
 
 # Scheduler function to check alerts for all servers
 async def run_alert_scheduler(bot, server_id):
