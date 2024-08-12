@@ -16,6 +16,7 @@ import tasks
 from urllib.parse import quote
 from config import get_config, save_tokens, states
 from tasks import refresh_token
+from bot_statistics import get_moon_drill_count, get_goo_amount, server_structures
 from commands import (
     handle_setup, handle_authenticate, handle_setadmin, handle_update_moondrills,
     handle_structure, handle_structureassets, handle_checkgas, handle_spacegoblin, handle_debug, handle_showadmin, handle_help, handle_add_alert_channel, handle_fetch_moon_goo_assets
@@ -34,6 +35,8 @@ intents.message_content = True  # Enable the message content intent
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 app = Flask(__name__)
+
+bot_start_time = datetime.utcnow()
 
 def run_flask():
     app.run(host='127.0.0.1', port=5005, ssl_context=None)
@@ -272,6 +275,27 @@ def tos():
 def privacy():
     return render_template('policy.html')
 
+# Define the bot's version
+bot_version = "0.1"  
+
+@app.route('/bot_stats')
+def bot_stats():
+    # Calculate uptime
+    current_time = datetime.utcnow()
+    uptime = current_time - bot_start_time
+
+    # Gather statistics
+    stats = {
+        'current_time': current_time,
+        'uptime': str(uptime),  # Convert timedelta to string for display
+        'version': bot_version,
+        'server_count': len(server_structures),  # Number of servers the bot is in
+        'moon_drill_count': get_moon_drill_count(),
+        'goo_amount': get_goo_amount(),
+    }
+
+    # Render the template with the statistics
+    return render_template('bot_stats.html', stats=stats)
 
 #### bot start, do not edit!
 if __name__ == "__main__":

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot Statistics</title>
+    <style>
+        body {
+            background: url('https://web-cdn.eveonline.com/aws/eveonline/sso/background.jpg') no-repeat center center fixed;
+            background-size: cover;
+            font-family: 'Arial', sans-serif;
+            color: white;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 80%;
+            margin: 50px auto;
+            background-color: rgba(30,30,30,.9);
+            padding: 20px;
+            border-radius: 10px;
+        }
+        h1 {
+            text-align: center;
+            font-family: 'Shentox-Medium', Arial;
+            color: #FFCC00;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #444;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #333;
+        }
+        td {
+            background-color: #222;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bot Statistics</h1>
+        <p><strong>Current Time:</strong> {{ stats.current_time.strftime('%Y-%m-%d %H:%M:%S') }} UTC</p>
+        <p><strong>Uptime:</strong> {{ stats.uptime }}</p>
+        <p><strong>Bot Version:</strong> {{ stats.version }}</p>
+
+        <h2>Current Statistics</h2>
+        <table>
+            <tr>
+                <th>Statistic</th>
+                <th>Value</th>
+            </tr>
+            <tr>
+                <td>Number of Servers</td>
+                <td>{{ stats.server_count }}</td>
+            </tr>
+            <tr>
+                <td>Moon Drills Managed</td>
+                <td>{{ stats.moon_drill_count }}</td>
+            </tr>
+            <tr>
+                <td>Total Goo Amount</td>
+                <td>{{ stats.goo_amount }}</td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>
