@@ -9,6 +9,10 @@
 ## What is Dr. MoonGoo?
 > A Discord bot that integrates with the EVE Online API to monitor moon drilling structures.
 
+## Invite the Bot to your server
+
+https://discord.com/oauth2/authorize?client_id=1242230305541197864
+
 ## Features
 
 - **OAuth2 Authentication**: Securely authenticate with the EVE Online API.
@@ -19,9 +23,6 @@
 - **Goo Check**: Print out the amount of materials the drill has in its 'assets'.
 - **Administrative Commands**: Manage alert channels and update moon drill IDs with ease.
 
-## Invite the Bot to your server
-
-https://discord.com/oauth2/authorize?client_id=1242230305541197864
 
 ## Standalone Setup:
 
@@ -60,7 +61,9 @@ docker run -d -p 5005:5005 -v /path/to/local/config.yaml:/usr/src/app/config.yam
    pip install -r requirements.txt
 ```
 
-4. **Eve Online Scopes**
+## Overall configuration:
+
+1. **Eve Online Scopes**
 
 You need to generate your API ID/KEY pair here: https://developers.eveonline.com/applications
 Give it the following scopes:
@@ -74,7 +77,7 @@ Give it the following scopes:
 - publicData
 ```
 
-5. **Discord application**
+2. **Discord application**
 
 Register your application here: https://discord.com/developers/applications
 Navigate to Applications > Bot
@@ -87,7 +90,7 @@ Permission Integer
 - 517544037440
 ```
 
-6. **configure the bot**
+3. **configure the bot**
 
 Update the config.yaml to your needs:
 
@@ -100,13 +103,16 @@ eve_online_client_id: YOUR_EVE_ONLINE_CLIENT_ID
 eve_online_secret_key: YOUR_EVE_ONLINE_SECRET_KEY
 ```
 
-7. **First Startup Sequence**
+4. **First Startup Sequence**
 
 - !authenticate: NEEDED! Authenticate against the EvE ESI via SSO
-- !getMeGoo: Will run the base setup.
-  - Will update your Moondrill structures, Gas & Fuel Levels, and the Goo Assets.
-- !updatemoondrills: Update your Moondrill structures
-- !selectalertchannel: Select the channel you wanna be alerted to
+
+*Optional:*
+
+- !getMeGoo: Will run a few basic setup routines.
+  - Will update your Moondrill structures, Gas & Fuel Levels, and the Goo Assets etc...
+- !updatemoondrills: Update your Moondrill structures on demand
+- !selectalertchannel: Select the channel you wanna be alerted to...
 
 ## Magmatic Gas & Fuelblock Calculation
 
@@ -115,16 +121,6 @@ Calculation is based on ingame values
 - Magmatic Gas: 1 Hour = 55 Units
 - Fuel Blocks: 1 Hour = 5 Blocks
 
-## Commands
-
-- **!authenticate**: Authenticate the bot against the EvE Online ESI API
-  - You need e.g. Director permissions ingame to check the structural assets
-- **!getMeGoo**: Will Setup basic parameters
-- **!updatemoondrills**: Update your Moondrill Structures
-- **!checkGoo**: Print out every Asset within your Metenox Moon Drills.
-- **!checkGas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with a timer
-- **!selectalertchannel**: Select the channel you wanna be alerted to.
-- **!spacegoblin**: Guess who is a good spacegoblin?
 
 ## Example Bot Response
 
@@ -141,6 +137,17 @@ Calculation is based on ingame values
 **Structure Name**: Magmatic Gas is running **low!**<br>
 Magmatic Gas: ***440*** <br>
 Gas runs out in: **0 Days 8 Hours**
+
+## Commands
+
+- **!authenticate**: Authenticate the bot against the EvE Online ESI API
+  - You need e.g. Director permissions ingame to check the structural assets
+- **!getMeGoo**: Will Setup basic parameters
+- **!updatemoondrills**: Update your Moondrill Structures
+- **!checkGoo**: Print out every Asset within your Metenox Moon Drills.
+- **!checkGas**: Prints the amount of Magmatic Gas and Fuel Blocks within the Moondrill with a timer
+- **!selectalertchannel**: Select the channel you wanna be alerted to.
+- **!spacegoblin**: Guess who is a good spacegoblin?
 
 ## Presented by Regnum Astera
 
