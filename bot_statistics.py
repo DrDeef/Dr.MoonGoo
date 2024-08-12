@@ -18,9 +18,3 @@ def get_moon_drill_count():
     for server_id, data in server_structures.items():
         moon_drill_count += len(data.get("metenox_moon_drill_ids", []))
     return moon_drill_count
-
-def get_goo_amount():
-    total_goo = 0
-    for structure_id, goo_items in metenox_goo.items():
-        total_goo += sum(goo_items.values())
-    return total_goo

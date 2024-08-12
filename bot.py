@@ -290,8 +290,7 @@ def bot_stats():
         'uptime': str(uptime),  # Convert timedelta to string for display
         'version': bot_version,
         'server_count': len(server_structures),  # Number of servers the bot is in
-        'moon_drill_count': get_moon_drill_count(),
-        'goo_amount': get_goo_amount(),
+        'moon_drill_count': get_moon_drill_count()
     }
 
     # Render the template with the statistics
