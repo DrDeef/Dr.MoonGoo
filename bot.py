@@ -216,6 +216,7 @@ async def spacegoblin(ctx):
 #async def structureassets(ctx):
 #    await handle_structureassets(ctx)
 
+
 @app.route('/oauth-callback')
 def oauth_callback():
     # Extract the code and state from the query parameters
@@ -262,7 +263,16 @@ def oauth_callback():
 
     return render_template('oauth_callback.html')
 
-    
+
+@app.route('/terms-of-service')
+def tos():
+    return render_template('tos.html')
+
+@app.route('/privacy-policy')
+def privacy():
+    return render_template('policy.html')
+
+
 #### bot start, do not edit!
 if __name__ == "__main__":
     try:
