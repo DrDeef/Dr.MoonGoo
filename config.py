@@ -50,15 +50,13 @@ def load_tokens():
 def save_tokens(server_id, access_token, refresh_token, expires_in):
     try:
         # Load existing tokens
-        with open('tokens.json', 'r') as file:
+        with open(tokens_file, 'r') as file:
             file_content = file.read().strip()
             if file_content:
                 all_tokens = json.loads(file_content)
             else:
                 all_tokens = {}
-    except FileNotFoundError:
-        all_tokens = {}
-    except json.JSONDecodeError:
+    except (FileNotFoundError, json.JSONDecodeError):
         all_tokens = {}
 
     # Ensure server_id is a string to use as a dictionary key
@@ -72,21 +70,30 @@ def save_tokens(server_id, access_token, refresh_token, expires_in):
         'created_at': datetime.utcnow().isoformat()
     }
 
-    # Save updated tokens
-    with open('tokens.json', 'w') as file:
+    # Save updated tokens back to the file
+    with open(tokens_file, 'w') as file:
         json.dump(all_tokens, file, indent=4)
+
 
 def get_server_tokens(server_id):
     # Make sure server_id is a string
     server_id_str = str(server_id)
     # Load tokens from file or database
-    tokens = load_tokens()  # Ensure this function loads the tokens correctly
+    tokens = load_tokens()
     return tokens.get(server_id_str, {})
 
 def add_server_id(server_id):
+    # Load existing tokens
     tokens = load_tokens()
-    if server_id not in tokens:
-        tokens[server_id] = {}
+    
+    # Ensure server_id is a string
+    server_id_str = str(server_id)
+    
+    # Add an empty dictionary for the server_id if it doesn't exist
+    if server_id_str not in tokens:
+        tokens[server_id_str] = {}
+
+    # Save the updated tokens back to the file
     with open(tokens_file, 'w') as file:
         json.dump(tokens, file, indent=4)
 
