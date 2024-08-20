@@ -181,7 +181,7 @@ async def handle_update_moondrills(ctx):
 
         # Save the updated server structures to JSON
         try:
-            await save_server_structures(server_structures, server_id)
+            save_server_structures(server_structures, server_id)
         except ValueError as ve:
             logging.error(f"Error in save_server_structures: {ve}")
             await ctx.send("Failed to save server structures. Please try again later.")

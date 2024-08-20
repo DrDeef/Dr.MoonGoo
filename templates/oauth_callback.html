@@ -23,7 +23,16 @@
 </head>
 <body>
     <div class="message-box">
-        Authentication successful! You can close this window now!
+        <h1>Authentication Successful</h1>
+        {% if character_info %}
+            <p>Character Name: {{ character_info.CharacterName }}</p>
+            
+            <p>Character ID: {{ character_info.CharacterID }}</p>
+
+            <p>Corporation ID: {{ corporation_id }}</p>
+        {% else %}
+            <p>No character information available.</p>
+        {% endif %}
     </div>
 </body>
 </html>

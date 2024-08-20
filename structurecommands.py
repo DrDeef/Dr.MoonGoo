@@ -3,12 +3,13 @@ import logging
 import config
 import aiohttp
 import asyncio
-from administration import get_access_token
-from config import save_server_structures, load_server_structures
+from administration import get_access_token, get_latest_token
+from config import save_server_structures, load_server_structures, get_config, load_tokens
+
 
 CORPORATION_ID = config.get_config('corporation_id', '')
 
-## new function
+
 def add_or_update_server(server_id, moon_drill_ids, structure_info):
     # Load existing server structures
     server_structures = load_server_structures()
@@ -20,11 +21,10 @@ def add_or_update_server(server_id, moon_drill_ids, structure_info):
     }
     
     # Save the updated structures
-    save_server_structures(server_structures)
+    save_server_structures(server_structures, server_id)
 
 
 async def update_structure_info(server_id, moon_drill_ids):
-    """Fetch and update structure information in the JSON file."""
     access_token = await get_access_token(server_id)
     if not access_token:
         logging.error(f"Failed to get access token for server {server_id}.")
@@ -32,11 +32,6 @@ async def update_structure_info(server_id, moon_drill_ids):
 
     headers = {'Authorization': f'Bearer {access_token}'}
     structure_info = {}
-
-    # Ensure moon_drill_ids is a list
-    if not isinstance(moon_drill_ids, list):
-        logging.error(f"Expected moon_drill_ids to be a list, got {type(moon_drill_ids)} instead.")
-        return
 
     async with aiohttp.ClientSession() as session:
         for structure_id in moon_drill_ids:
@@ -47,33 +42,32 @@ async def update_structure_info(server_id, moon_drill_ids):
                     response.raise_for_status()
                     data = await response.json()
 
-                    if 'error' in data:
-                        logging.error(f"Error fetching structure info for server {server_id}, ID {structure_id}: {data.get('error', 'Unknown error')}")
-                        structure_info[structure_id] = 'Unknown Structure'
-                    else:
-                        structure_name = data.get('name', 'Unknown Structure')
+                    # Check for valid response
+                    if 'name' in data:
+                        structure_name = data['name']
                         structure_info[structure_id] = structure_name
+                        logging.info(f"Fetched structure name for ID {structure_id}: {structure_name}")
+                    else:
+                        logging.error(f"Unexpected response format for server {server_id}, ID {structure_id}: {data}")
+                        structure_info[structure_id] = 'Unknown Structure'
             except aiohttp.ClientError as e:
                 logging.error(f"Request error for server {server_id}, ID {structure_id}: {e}")
                 structure_info[structure_id] = 'Unknown Structure'
 
-    # Load existing server structures
+    # Load and update server structures
     server_structures = load_server_structures()
 
-    # Ensure server_structures is a dictionary
     if not isinstance(server_structures, dict):
         logging.error(f"Expected server_structures to be a dict, got {type(server_structures)} instead.")
         return
 
-    # Update the structure information for the server
-    if server_id not in server_structures:
-        server_structures[server_id] = {'metenox_moon_drill_ids': moon_drill_ids, 'structure_info': structure_info}
-    else:
-        server_structures[server_id]['structure_info'] = structure_info
+    server_structures[server_id] = {
+        'metenox_moon_drill_ids': moon_drill_ids,
+        'structure_info': structure_info
+    }
 
-    # Save the updated server structures to JSON
     try:
-        save_server_structures(server_structures, server_id)  # Note: This should not be await unless it's async
+        save_server_structures(server_structures, server_id)
         logging.info(f"Updated structure info for server {server_id}: {structure_info}")
     except Exception as e:
         logging.error(f"Error saving structure info to JSON file: {e}")
@@ -115,6 +109,7 @@ async def get_all_structure_assets(structure_ids, server_id):
     logging.error("Unexpected API response format")
     return "Unexpected API response format"
 
+
 async def get_moon_drills(server_id):
     access_token = await get_access_token(server_id)
     if not access_token:
@@ -122,13 +117,17 @@ async def get_moon_drills(server_id):
         return []
 
     headers = {'Authorization': f'Bearer {access_token}'}
-    corporation_id = config.get_config('corporation_id', '')
-    url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/structures/?datasource=tranquility'
+    corporation_id = get_latest_token(server_id).get('corporation_id')
+    if not corporation_id:
+        logging.error(f"No corporation ID available for server {server_id}.")
+        return []
 
-    ###debug logging.info(f"Fetching moon drills for server {server_id} from URL: {url} with headers: {headers}")
+    url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/structures/?datasource=tranquility'
+    
+    logging.info(f"Fetching moon drills for server {server_id} from URL: {url} with headers: {headers}")
 
     async with aiohttp.ClientSession() as session:
-        for attempt in range(3):  # Retry up to 3 times
+        for attempt in range(3):
             try:
                 async with session.get(url, headers=headers) as response:
                     response.raise_for_status()
@@ -144,31 +143,30 @@ async def get_moon_drills(server_id):
                         if structure['type_id'] == 35835 or 'Automatic Moon Drilling' in [service['name'] for service in structure.get('services', [])]
                     ]
 
-                    ### debug logging.info(f"Fetched moon drills for server {server_id}: {moon_drill_ids}")
-
+                    logging.info(f"Fetched moon drills for server {server_id}: {moon_drill_ids}")
                     return moon_drill_ids
             except aiohttp.ClientError as e:
                 logging.error(f"Request error for server {server_id} (attempt {attempt + 1}/3): {e}")
                 if attempt < 2:
                     logging.info("Retrying...")
-            except aiohttp.ServerTimeoutError as e:
+            except asyncio.TimeoutError as e:
                 logging.error(f"Request timed out for server {server_id} (attempt {attempt + 1}/3): {e}")
                 if attempt < 2:
                     logging.info("Retrying...")
         logging.error(f"All attempts to fetch moon drills for server {server_id} failed.")
-        return [...]
+        return []
 
 
 async def get_structure_info(server_id, structure_id):
     access_token = await get_access_token(server_id)
     if not access_token:
-        logging.error(f"Failed to get access token for server {server_id}")
+        logging.error(f"Failed to get access token for server {server_id}.")
         return "Failed to get access token."
 
     headers = {'Authorization': f'Bearer {access_token}'}
     url = f'https://esi.evetech.net/latest/universe/structures/{structure_id}/'
     
-    logging.info(f"Fetching structure info for server {server_id} and structure {structure_id} from URL: {url} with headers: {headers}")
+    logging.info(f"Fetching structure info for server {server_id} and structure {structure_id} from URL: {url}")
 
     async with aiohttp.ClientSession() as session:
         try:
@@ -176,15 +174,25 @@ async def get_structure_info(server_id, structure_id):
                 response.raise_for_status()
                 data = await response.json()
 
-                if 'error' in data:
-                    logging.error(f"Error fetching structure info for server {server_id}: {data['error']}")
-                    return f"Error fetching structure info for ID {structure_id}: {data.get('error', 'Unknown error')}"
-                
-                structure_name = data.get('name', 'Unknown Structure')
-                return f"Structure ID: {structure_id}\nStructure Name: {structure_name}"
+                # Check if 'name' key exists in the response data
+                if 'name' in data:
+                    structure_name = data['name']
+                    logging.info(f"Successfully fetched structure info for server {server_id}, ID {structure_id}: {structure_name}")
+                    return f"Structure ID: {structure_id}\nStructure Name: {structure_name}"
+                else:
+                    logging.error(f"Unexpected response format for server {server_id}, ID {structure_id}: {data}")
+                    return f"Structure ID: {structure_id}\nError: Unexpected response format. No 'name' field found."
+
         except aiohttp.ClientError as e:
-            logging.error(f"Request error for server {server_id}: {e}")
-            return 'Unknown Structure'
+            logging.error(f"Request error for server {server_id}, structure ID {structure_id}: {e}")
+            return f"Structure ID: {structure_id}\nError: Failed to retrieve structure info."
+        except aiohttp.http_exceptions.HttpProcessingError as e:
+            logging.error(f"HTTP processing error for server {server_id}, structure ID {structure_id}: {e}")
+            return f"Structure ID: {structure_id}\nError: HTTP processing error."
+        except Exception as e:
+            logging.error(f"Unexpected error for server {server_id}, structure ID {structure_id}: {e}")
+            return f"Structure ID: {structure_id}\nError: An unexpected error occurred."
+
 
 
 async def get_structure_name(server_id, structure_id):
@@ -194,7 +202,7 @@ async def get_structure_name(server_id, structure_id):
         return 'Failed to get access token'
 
     headers = {'Authorization': f'Bearer {access_token}'}
-    corporation_id = config.get_config('corporation_id', '')
+    corporation_id = get_config('corporation_id', '')
     url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/structures/{structure_id}/?datasource=tranquility'
 
     logging.info(f"Fetching structure name for server {server_id} and structure {structure_id} from URL: {url} with headers: {headers}")
@@ -207,9 +215,10 @@ async def get_structure_name(server_id, structure_id):
 
                 if 'error' in data:
                     logging.error(f"Error fetching structure name for server {server_id}: {data['error']}")
-                    return 'Unknown Structure'
-
-                return data.get('name', 'Unknown Structure')
+                    return f"Error fetching structure name for ID {structure_id}: {data.get('error', 'Unknown error')}"
+                
+                structure_name = data.get('name', 'Unknown Structure')
+                return structure_name
         except aiohttp.ClientError as e:
             logging.error(f"Request error for server {server_id}: {e}")
             return 'Unknown Structure'

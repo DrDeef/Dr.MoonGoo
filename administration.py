@@ -2,10 +2,12 @@
 import aiohttp
 import logging
 import config
+from config import tokens,get_config, load_tokens
 from urllib.parse import quote
 from config import save_tokens
 import base64
 import json
+import requests
 from datetime import datetime, timedelta
 
 
@@ -26,23 +28,37 @@ tokens = config.tokens
 states = config.states
 
 
+def is_token_valid(created_at, expires_in):
+    token_creation_time = datetime.fromisoformat(created_at[:-1])  # Removing 'Z' before parsing
+    expiration_time = token_creation_time + timedelta(seconds=expires_in)
+    return datetime.utcnow() < expiration_time
+
 async def get_access_token(server_id):
-    tokens = config.get_server_tokens(server_id)
+    tokens = config.load_tokens()
+    server_tokens = tokens.get(server_id, {}).get('tokens', [])
     
-    # Check if there's a valid token already
-    if tokens and 'access_token' in tokens and not is_token_expired(tokens):
-        logging.info(f"Using existing access token for server {server_id}")
-        return tokens['access_token']
+    if not server_tokens:
+        logging.error(f"No tokens found for server {server_id}.")
+        return None
     
-    # Refresh the token if expired or missing
-    if tokens and 'refresh_token' in tokens:
-        logging.info(f"Refreshing access token for server {server_id}")
-        new_tokens = await refresh_token(server_id)
-        return new_tokens.get('access_token', None)
+    # Sort tokens by creation time, most recent first
+    server_tokens = sorted(server_tokens, key=lambda x: x['created_at'], reverse=True)
+    latest_token = server_tokens[0]
     
-    # Handle the case where no refresh token is available
-    logging.error(f"No refresh token available for server {server_id}")
-    return None
+    access_token = latest_token.get('access_token')
+    expires_in = latest_token.get('expires_in')
+    created_at = latest_token.get('created_at')
+
+    # Check if the token is still valid
+    if is_token_valid(created_at, expires_in):
+        return access_token
+    else:
+        logging.info(f"Access token for server {server_id} is expired, attempting to refresh.")
+        # Refresh the token if expired
+        new_token_data = await refresh_token(server_id)
+        return new_token_data.get('access_token') if new_token_data else None
+
+
 
 
 def is_token_expired(server_id):
@@ -98,3 +114,52 @@ async def refresh_token(server_id):
         except aiohttp.ClientError as e:
             logging.error(f'Exception occurred while refreshing access token for server {server_id}: {str(e)}')
             return {}
+
+
+def get_character_info(access_token):
+    url = 'https://esi.evetech.net/verify/'
+    headers = {
+        'Authorization': f'Bearer {access_token}'
+    }
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error retrieving character info: {e}")
+        return None
+
+def get_corporation_id(character_id, access_token):
+    """Retrieve the corporation ID associated with the character."""
+    url = f'https://esi.evetech.net/latest/characters/{character_id}/'
+    headers = {
+        'Authorization': f'Bearer {access_token}'
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        character_info = response.json()
+
+        corporation_id = character_info.get('corporation_id')
+        if corporation_id:
+            logging.info(f"Corporation ID: {corporation_id}")
+        else:
+            logging.error("Corporation ID not found in the response.")
+        
+        return corporation_id
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error retrieving corporation ID: {e}")
+        return None
+    
+def get_latest_token(server_id):
+    tokens = load_tokens()
+
+    if server_id in tokens and 'tokens' in tokens[server_id]:
+        # Sort tokens by creation time, most recent first
+        sorted_tokens = sorted(tokens[server_id]['tokens'], key=lambda x: x['created_at'], reverse=True)
+        return sorted_tokens[0]  # Return the latest token
+
+    logging.error(f"No tokens found for server {server_id}.")
+    return None

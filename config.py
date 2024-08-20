@@ -23,7 +23,6 @@ def load_config():
             'admin_channels': [],
             'alert_channel_id': None,
             'alert_threshold': 500,
-            'corporation_id': '',
             'discord_bot_token': '',
             'eve_online_callback_url': '',
             'eve_online_client_id': '',
@@ -42,38 +41,35 @@ def save_config(config_data):
 
 def load_tokens():
     try:
-        with open(tokens_file, 'r') as file:
+        with open('tokens.json', 'r') as file:
             return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}  # Return an empty dictionary if tokens cannot be loaded
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError:
+        return {}
 
-def save_tokens(server_id, access_token, refresh_token, expires_in):
-    try:
-        # Load existing tokens
-        with open(tokens_file, 'r') as file:
-            file_content = file.read().strip()
-            if file_content:
-                all_tokens = json.loads(file_content)
-            else:
-                all_tokens = {}
-    except (FileNotFoundError, json.JSONDecodeError):
-        all_tokens = {}
-
-    # Ensure server_id is a string to use as a dictionary key
-    server_id_str = str(server_id)
-
-    # Update tokens for the specific server_id
-    all_tokens[server_id_str] = {
-        'access_token': access_token,
-        'refresh_token': refresh_token,
-        'expires_in': expires_in,
-        'created_at': datetime.utcnow().isoformat()
+def save_tokens(server_id, access_token, refresh_token, expires_in, corporation_id=None):
+    tokens = load_tokens()
+    
+    # Ensure the server_id exists in the tokens dictionary
+    if server_id not in tokens:
+        tokens[server_id] = {"tokens": []}
+    
+    # Create new token data entry
+    new_token_data = {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_in": expires_in,
+        "created_at": datetime.utcnow().isoformat() + "Z",
+        "corporation_id": corporation_id
     }
+    
+    # Append the new token to the tokens list for this server_id
+    tokens[server_id]['tokens'].append(new_token_data)
 
-    # Save updated tokens back to the file
+    # Save the updated tokens
     with open(tokens_file, 'w') as file:
-        json.dump(all_tokens, file, indent=4)
-
+        json.dump(tokens, file, indent=4)
 
 def get_server_tokens(server_id):
     # Make sure server_id is a string

@@ -13,13 +13,13 @@ from discord.utils import get
 from scheduler import run_alert_scheduler
 import config
 import tasks 
+from datetime import datetime
 from urllib.parse import quote
+from administration import get_character_info, get_corporation_id
 from config import get_config, save_tokens, states
-from tasks import refresh_token
-from bot_statistics import get_moon_drill_count, get_goo_amount, server_structures
+from bot_statistics import get_moon_drill_count, server_structures
 from commands import (
-    handle_setup, handle_authenticate, handle_setadmin, handle_update_moondrills,
-    handle_structure, handle_structureassets, handle_checkgas, handle_spacegoblin, handle_debug, handle_showadmin, handle_help, handle_add_alert_channel, handle_fetch_moon_goo_assets
+    handle_setup, handle_authenticate, handle_update_moondrills, handle_checkgas, handle_spacegoblin,  handle_showadmin, handle_help,  handle_fetch_moon_goo_assets
 )
 
 # Fetch the configuration values
@@ -147,18 +147,6 @@ async def selectalertchannel(ctx):
         view=view
     )
 
-#@bot.command()
-#async def GooAlert(ctx):
-#    # Set the alert channel in the configuration
-#    alert_channel_id = str(ctx.channel.id)
-#    config.set_config('alert_channel_id', alert_channel_id)
-#    
-#    # Notify that the alert channel has been set
-#    await ctx.send(f"Alert channel set to <#{alert_channel_id}>")
-#
-#    # Start the background scheduler
-#    asyncio.create_task(run_alert_scheduler(bot))  # Pass the bot instance
-
 
 @bot.command()
 async def authenticate(ctx):
@@ -261,10 +249,26 @@ def oauth_callback():
     refresh_token = response_data.get('refresh_token', None)
     expires_in = response_data.get('expires_in', None)
 
-    # Save the tokens for the specific server_id
-    save_tokens(server_id, access_token, refresh_token, expires_in)
+    # Retrieve character info and corporation ID
+    character_info = get_character_info(access_token)
+    if not character_info:
+        return "Failed to retrieve character info", 500
 
-    return render_template('oauth_callback.html')
+    character_id = character_info.get('CharacterID')
+    if not character_id:
+        return "Character ID not found in the character info", 500
+
+    corporation_id = get_corporation_id(character_id, access_token)
+    if corporation_id is None:
+        return "Failed to retrieve corporation ID", 500
+
+    # Save the tokens and corporation ID
+    save_tokens(server_id, access_token, refresh_token, expires_in, corporation_id)
+
+    # Pass both character_info and corporation_id to the template
+    return render_template('oauth_callback.html', character_info=character_info, corporation_id=corporation_id)
+
+
 
 
 @app.route('/terms-of-service')
