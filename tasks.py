@@ -3,32 +3,19 @@ import config
 from config import save_server_structures, load_server_structures
 from structurecommands import get_moon_drills
 from discord.ext import tasks
-from administration import refresh_token, get_access_token
+from administration import refresh_all_tokens
 
-# Periodic task to refresh token every 5 minutes
+# Task to refresh all tokens
 @tasks.loop(minutes=5)
 async def refresh_token_task():
-    # Retrieve all server IDs from your configuration or data storage
-    server_ids = config.get_all_server_ids()  # Ensure this method returns a list of server IDs
-    
-    if not server_ids:
-        logging.error("No server IDs found in the configuration.")
-        return
-
-    for server_id in server_ids:
-        try:
-            response = await refresh_token(server_id)
-            
-            if response:
-                logging.info(f"Successfully refreshed access token for server {server_id}.")
-            else:
-                logging.error(f"Failed to refresh access token for server {server_id}.")
-        
-        except Exception as e:
-            logging.error(f"Exception occurred while refreshing token for server {server_id}: {str(e)}")
+    try:
+        await refresh_all_tokens()
+    except Exception as e:
+        logging.error(f"Exception occurred during the refresh token task: {str(e)}")
 
 
-# Periodic task to update moon drills every 30 minutes
+
+# Task to update moon drills
 @tasks.loop(minutes=30)
 async def update_moondrills_task():
     try:
@@ -62,17 +49,13 @@ async def update_moondrills_task():
         logging.error(f"Exception occurred while loading server structures: {str(e)}")
 
 
-# Load configuration and tokens
-config.load_config()
-config.load_tokens()
 
-### Function to start tasks
+# Function to start tasks
 def start_tasks(bot):
     if not refresh_token_task.is_running():
         logging.info("Starting refresh_token_task.")
         refresh_token_task.start()
-        logging.info("task completet.....")
+    
     if not update_moondrills_task.is_running():
         logging.info("Starting update_moondrills_task.")
         update_moondrills_task.start()
-        logging.info("task completet.....")
