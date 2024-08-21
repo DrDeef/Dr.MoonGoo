@@ -29,9 +29,14 @@ states = config.states
 
 
 def is_token_valid(created_at, expires_in):
-    token_creation_time = datetime.fromisoformat(created_at[:-1])  # Removing 'Z' before parsing
-    expiration_time = token_creation_time + timedelta(seconds=expires_in)
-    return datetime.utcnow() < expiration_time
+    try:
+        token_creation_time = datetime.fromisoformat(created_at[:-1])  # Removing 'Z' before parsing
+        expiration_time = token_creation_time + timedelta(seconds=expires_in)
+        return datetime.utcnow() < expiration_time
+    except Exception as e:
+        logging.error(f"Error checking token validity: {e}")
+        return False
+
 
 async def get_access_token(server_id):
     tokens = config.load_tokens()
@@ -49,38 +54,36 @@ async def get_access_token(server_id):
     expires_in = latest_token.get('expires_in')
     created_at = latest_token.get('created_at')
 
-    # Check if the token is still valid
-    if is_token_valid(created_at, expires_in):
-        return access_token
-    else:
+    # Check if the token is expired
+    if is_token_expired(created_at, expires_in):
         logging.info(f"Access token for server {server_id} is expired, attempting to refresh.")
-        # Refresh the token if expired
         new_token_data = await refresh_token(server_id)
         return new_token_data.get('access_token') if new_token_data else None
+    else:
+        return access_token
 
 
 
-
-def is_token_expired(server_id):
-    tokens = config.get_server_tokens(server_id)
-    if not tokens or 'created_at' not in tokens or 'expires_in' not in tokens:
+def is_token_expired(created_at, expires_in):
+    try:
+        token_creation_time = datetime.fromisoformat(created_at[:-1])  # Removing 'Z' before parsing
+        expiration_time = token_creation_time + timedelta(seconds=expires_in)
+        return datetime.utcnow() > expiration_time
+    except Exception as e:
+        logging.error(f"Error checking token expiration: {e}")
         return True
-    
-    created_at = datetime.fromisoformat(tokens['created_at'])
-    expires_in = tokens['expires_in']
-    expiration_time = created_at + timedelta(seconds=expires_in)
-    
-    return datetime.utcnow() > expiration_time
+
 
 async def refresh_token(server_id):
     tokens = config.get_server_tokens(server_id)
-    
+    logging.info(f"Retrieved tokens for server {server_id}: {tokens}")  # Log the tokens
+
     if not tokens or 'refresh_token' not in tokens:
         logging.error(f"No refresh token found for server {server_id}. Cannot refresh access token.")
         return {}
 
     refresh_token = tokens['refresh_token']
-    ##debugenable logging.info(f"Using refresh token for server {server_id}: {refresh_token}")
+    logging.info(f"Using refresh token for server {server_id}: {refresh_token}")
 
     refresh_token_encoded = quote(refresh_token)
     data = f'grant_type=refresh_token&refresh_token={refresh_token_encoded}'
@@ -102,11 +105,11 @@ async def refresh_token(server_id):
                 response.raise_for_status()
                 response_data = await response.json()
                 
-                ###debug logging.info(f"Refresh response data for server {server_id}: {response_data}")
+                logging.info(f"Refresh response data for server {server_id}: {response_data}")
 
                 if 'access_token' in response_data:
-                    ###debug logging.info(f"New access token for server {server_id}: {response_data['access_token']}")
-                    save_tokens(server_id, response_data['access_token'], response_data.get('refresh_token', refresh_token), response_data.get('expires_in', 3600))
+                    logging.info(f"New access token for server {server_id}: {response_data['access_token']}")
+                    save_tokens(server_id, response_data['access_token'], response_data.get('refresh_token', ''), response_data.get('expires_in', 3600))
                     return response_data
                 else:
                     logging.error(f'Failed to refresh access token for server {server_id}: {response_data.get("error_description", "No error description provided.")}')
@@ -114,6 +117,34 @@ async def refresh_token(server_id):
         except aiohttp.ClientError as e:
             logging.error(f'Exception occurred while refreshing access token for server {server_id}: {str(e)}')
             return {}
+
+
+        
+async def refresh_all_tokens():
+    try:
+        # Retrieve all server IDs
+        server_ids = config.get_all_server_ids()
+        logging.info(f"Retrieved server IDs: {server_ids}")  # Log the server IDs
+        
+        if not server_ids:
+            logging.error("No server IDs found in the configuration.")
+            return
+
+        for server_id in server_ids:
+            try:
+                # Refresh token for each server
+                response = await refresh_token(server_id)
+                
+                if response:
+                    logging.info(f"Successfully refreshed access token for server {server_id}.")
+                else:
+                    logging.error(f"Failed to refresh access token for server {server_id}.")
+            
+            except Exception as e:
+                logging.error(f"Exception occurred while refreshing token for server {server_id}: {str(e)}")
+
+    except Exception as e:
+        logging.error(f"Exception occurred during the refresh all tokens task: {str(e)}")
 
 
 def get_character_info(access_token):

@@ -199,13 +199,6 @@ async def goohelp(ctx):
 async def spacegoblin(ctx):
     await handle_spacegoblin(ctx)
 
-#@bot.command()
-#async def structure(ctx, *, structure_id: str):
-#    await handle_structure(ctx)
-
-#@bot.command()
-#async def structureassets(ctx):
-#    await handle_structureassets(ctx)
 
 
 @app.route('/oauth-callback')

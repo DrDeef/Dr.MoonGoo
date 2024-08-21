@@ -42,10 +42,11 @@ def save_config(config_data):
 def load_tokens():
     try:
         with open('tokens.json', 'r') as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return {}
-    except json.JSONDecodeError:
+            tokens = json.load(file)
+            logging.info(f"Loaded tokens: {tokens}")
+            return tokens
+    except Exception as e:
+        logging.error(f"Error loading tokens: {str(e)}")
         return {}
 
 def save_tokens(server_id, access_token, refresh_token, expires_in, corporation_id=None):
