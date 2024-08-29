@@ -1,32 +1,22 @@
-
 import aiohttp
 import logging
 import config
-from config import tokens,get_config, load_tokens
+from config import get_config, load_token, save_token
 from urllib.parse import quote
-from config import save_tokens
 import base64
+from datetime import datetime, timedelta
 import json
 import requests
-from datetime import datetime, timedelta
-
 
 logging.basicConfig(level=logging.INFO)
 
-
 # Access config values using the get_config function
-ADMIN_CHANNELS = config.get_config('admin_channels', [])
-ADMIN_ROLE = config.get_config('admin_role', 'Admin')
-CLIENT_ID = config.get_config('eve_online_client_id', '')
-CLIENT_SECRET = config.get_config('eve_online_secret_key', '')
-CALLBACK_URL = config.get_config('eve_online_callback_url', '')
-CORPORATION_ID = config.get_config('corporation_id', '')
-
-
-# Use the updated methods and variables from config.py
-tokens = config.tokens
-states = config.states
-
+ADMIN_CHANNELS = get_config('admin_channels', [])
+ADMIN_ROLE = get_config('admin_role', 'Admin')
+CLIENT_ID = get_config('eve_online_client_id', '')
+CLIENT_SECRET = get_config('eve_online_secret_key', '')
+CALLBACK_URL = get_config('eve_online_callback_url', '')
+CORPORATION_ID = get_config('corporation_id', '')
 
 def is_token_valid(created_at, expires_in):
     try:
@@ -37,60 +27,48 @@ def is_token_valid(created_at, expires_in):
         logging.error(f"Error checking token validity: {e}")
         return False
 
-
-async def get_access_token(server_id):
-    tokens = config.load_tokens()
-    server_tokens = tokens.get(server_id, {}).get('tokens', [])
-    
-    if not server_tokens:
-        logging.error(f"No tokens found for server {server_id}.")
-        return None
-    
-    # Sort tokens by creation time, most recent first
-    server_tokens = sorted(server_tokens, key=lambda x: x['created_at'], reverse=True)
-    latest_token = server_tokens[0]
-    
-    access_token = latest_token.get('access_token')
-    expires_in = latest_token.get('expires_in')
-    created_at = latest_token.get('created_at')
-
-    # Check if the token is expired
-    if is_token_expired(created_at, expires_in):
-        logging.info(f"Access token for server {server_id} is expired, attempting to refresh.")
-        new_token_data = await refresh_token(server_id)
-        return new_token_data.get('access_token') if new_token_data else None
-    else:
-        return access_token
-
-
-
 def is_token_expired(created_at, expires_in):
-    try:
-        token_creation_time = datetime.fromisoformat(created_at[:-1])  # Removing 'Z' before parsing
-        expiration_time = token_creation_time + timedelta(seconds=expires_in)
-        return datetime.utcnow() > expiration_time
-    except Exception as e:
-        logging.error(f"Error checking token expiration: {e}")
-        return True
+    created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+    expiration_time = created_at + timedelta(seconds=expires_in)
+    return datetime.utcnow() > expiration_time
 
+async def get_access_token(server_id, corporation_id):
+    """Retrieve the access token, refreshing it if expired."""
+    token_data = load_token(server_id, corporation_id)
 
-async def refresh_token(server_id):
-    tokens = config.get_server_tokens(server_id)
-    logging.info(f"Retrieved tokens for server {server_id}: {tokens}")  # Log the tokens
+    if not token_data:
+        logging.error(f"No tokens found for server {server_id}, corporation {corporation_id}.")
+        return None
 
-    if not tokens or 'refresh_token' not in tokens:
-        logging.error(f"No refresh token found for server {server_id}. Cannot refresh access token.")
+    if is_token_expired(token_data['created_at'], token_data['expires_in']):
+        logging.info(f"Token expired for server {server_id}, corporation {corporation_id}. Refreshing...")
+        response = await refresh_token(server_id, corporation_id)
+        return response.get('access_token') if response else None
+
+    return token_data['access_token']
+
+async def refresh_token(server_id, corporation_id):
+    """Refresh the access token for a specific server and corporation."""
+    token_data = config.load_token(server_id, corporation_id)
+    if not token_data:
+        logging.error(f"No token data found for server ID {server_id}, corporation ID {corporation_id}.")
         return {}
 
-    refresh_token = tokens['refresh_token']
-    logging.info(f"Using refresh token for server {server_id}: {refresh_token}")
+    refresh_token = token_data.get('refresh_token')
+    if not refresh_token:
+        logging.error(f"No refresh token available for server ID {server_id}, corporation ID {corporation_id}.")
+        return {}
+
+    if not isinstance(refresh_token, str):
+        logging.error(f"Refresh token for server ID {server_id} and corporation ID {corporation_id} is not a string. Converting to string.")
+        refresh_token = str(refresh_token)
+
+    logging.debug(f"Refreshing token for server ID {server_id}, corporation ID {corporation_id}. Using refresh token: {refresh_token}")
 
     refresh_token_encoded = quote(refresh_token)
     data = f'grant_type=refresh_token&refresh_token={refresh_token_encoded}'
 
-    client_id = config.get_config('eve_online_client_id', '')
-    client_secret = config.get_config('eve_online_secret_key', '')
-    auth_str = f"{client_id}:{client_secret}"
+    auth_str = f"{CLIENT_ID}:{CLIENT_SECRET}"
     b64_auth_str = base64.b64encode(auth_str.encode()).decode()
 
     headers = {
@@ -102,50 +80,62 @@ async def refresh_token(server_id):
     async with aiohttp.ClientSession() as session:
         try:
             async with session.post('https://login.eveonline.com/v2/oauth/token', data=data, headers=headers) as response:
-                response.raise_for_status()
-                response_data = await response.json()
-                
-                logging.info(f"Refresh response data for server {server_id}: {response_data}")
-
-                if 'access_token' in response_data:
-                    logging.info(f"New access token for server {server_id}: {response_data['access_token']}")
-                    save_tokens(server_id, response_data['access_token'], response_data.get('refresh_token', ''), response_data.get('expires_in', 3600))
-                    return response_data
-                else:
-                    logging.error(f'Failed to refresh access token for server {server_id}: {response_data.get("error_description", "No error description provided.")}')
+                if response.status != 200:
+                    response_text = await response.text()
+                    logging.error(f"Failed to refresh access token for server ID {server_id}, corporation ID {corporation_id}. Status: {response.status}, Response: {response_text}. Refresh token used: {refresh_token}")
                     return {}
+
+                response_data = await response.json()
+
+                access_token = response_data.get('access_token')
+                if not access_token:
+                    logging.error(f"Failed to refresh access token for server ID {server_id}, corporation ID {corporation_id}. No access token in response. Refresh token used: {refresh_token}")
+                    return {}
+
+                # Preserve existing character_id if not provided in response
+                existing_character_id = token_data.get('character_id', '')
+
+                new_refresh_token = response_data.get('refresh_token', refresh_token)  # Use existing refresh token if new one is not provided
+                expires_in = response_data.get('expires_in', 3600)  # Default to 3600 if not provided
+                created_at = datetime.utcnow().isoformat() + "Z"  # Set the current UTC time for 'created_at'
+                character_id = response_data.get('character_id', existing_character_id)  # Preserve existing character_id
+
+                logging.info(f"New access token for server ID {server_id}, corporation ID {corporation_id}")
+
+                # Save the tokens with the updated values
+                config.save_token(server_id, corporation_id, access_token, new_refresh_token, expires_in, created_at, character_id)
+                return response_data
         except aiohttp.ClientError as e:
-            logging.error(f'Exception occurred while refreshing access token for server {server_id}: {str(e)}')
+            logging.error(f"Exception occurred while refreshing access token for server ID {server_id}, corporation ID {corporation_id}: {str(e)}. Refresh token used: {refresh_token}")
             return {}
 
-
-        
 async def refresh_all_tokens():
+    """Refresh all tokens for all servers and corporations."""
     try:
-        # Retrieve all server IDs
-        server_ids = config.get_all_server_ids()
-        logging.info(f"Retrieved server IDs: {server_ids}")  # Log the server IDs
-        
-        if not server_ids:
-            logging.error("No server IDs found in the configuration.")
+        all_tokens = config.load_all_tokens()
+
+        if not all_tokens:
+            logging.error("No tokens found.")
             return
 
-        for server_id in server_ids:
-            try:
-                # Refresh token for each server
-                response = await refresh_token(server_id)
-                
-                if response:
-                    logging.info(f"Successfully refreshed access token for server {server_id}.")
-                else:
-                    logging.error(f"Failed to refresh access token for server {server_id}.")
-            
-            except Exception as e:
-                logging.error(f"Exception occurred while refreshing token for server {server_id}: {str(e)}")
+        logging.info("Starting token refresh for all servers.")
+
+        for server_id, corporations in all_tokens.items():
+            for corporation_id in corporations.keys():
+                try:
+                    # Refresh token for each corporation in each server
+                    response = await refresh_token(server_id, corporation_id)
+
+                    if response:
+                        logging.info(f"Successfully refreshed access token for server ID {server_id}, corporation ID {corporation_id}.")
+                    else:
+                        logging.error(f"Failed to refresh access token for server ID {server_id}, corporation ID {corporation_id}.")
+
+                except Exception as e:
+                    logging.error(f"Exception occurred while refreshing token for server ID {server_id}, corporation ID {corporation_id}: {str(e)}")
 
     except Exception as e:
-        logging.error(f"Exception occurred during the refresh all tokens task: {str(e)}")
-
+        logging.error(f"refresh_all_tokens failed with error: {str(e)}")
 
 def get_character_info(access_token):
     url = 'https://esi.evetech.net/verify/'
@@ -157,7 +147,7 @@ def get_character_info(access_token):
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Error retrieving character info: {e}")
+        logging.error(f"Error retrieving character info: {e}")
         return None
 
 def get_corporation_id(character_id, access_token):
@@ -183,13 +173,13 @@ def get_corporation_id(character_id, access_token):
     except requests.exceptions.RequestException as e:
         logging.error(f"Error retrieving corporation ID: {e}")
         return None
-    
-def get_latest_token(server_id):
-    tokens = load_tokens()
 
-    if server_id in tokens and 'tokens' in tokens[server_id]:
+def get_latest_token(server_id):
+    tokens = load_token(server_id, None)  # Assuming `None` if corporation_id is not used
+
+    if server_id in tokens:
         # Sort tokens by creation time, most recent first
-        sorted_tokens = sorted(tokens[server_id]['tokens'], key=lambda x: x['created_at'], reverse=True)
+        sorted_tokens = sorted(tokens.values(), key=lambda x: x['created_at'], reverse=True)
         return sorted_tokens[0]  # Return the latest token
 
     logging.error(f"No tokens found for server {server_id}.")

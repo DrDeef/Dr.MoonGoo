@@ -4,7 +4,7 @@ import config
 import aiohttp
 import asyncio
 from administration import get_access_token, get_latest_token
-from config import save_server_structures, load_server_structures, get_config, load_tokens
+from config import save_server_structures, load_server_structures, get_config
 
 
 CORPORATION_ID = config.get_config('corporation_id', '')
@@ -111,7 +111,7 @@ async def get_all_structure_assets(structure_ids, server_id):
 
 
 async def get_moon_drills(server_id):
-    access_token = await get_access_token(server_id)
+    access_token = await get_access_token(server_id, CORPORATION_ID)
     if not access_token:
         logging.error(f"No access token available for server {server_id}. Cannot fetch moon drills.")
         return []

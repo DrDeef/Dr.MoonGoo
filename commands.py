@@ -6,7 +6,7 @@ import config
 import moongoo
 import os
 from moongoo_commands import handle_fetch_moon_goo_assets
-from config import load_tokens, save_server_structures, load_server_structures
+from config import load_token, save_server_structures, load_server_structures
 from datetime import datetime, timedelta
 from collections import defaultdict
 from structurecommands import get_all_structure_assets, get_moon_drills, update_structure_info
@@ -380,7 +380,7 @@ async def handle_structureassets(ctx):
 
 
 async def handle_debug(message):
-    token_data = load_tokens()  # This needs to be a function in your code
+    token_data = ()  # This needs to be a function in your code
 
     access_token = token_data.get('access_token', 'No access token found')
     refresh_token = token_data.get('refresh_token', 'No refresh token found')

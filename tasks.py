@@ -11,7 +11,7 @@ async def refresh_token_task():
     try:
         await refresh_all_tokens()
     except Exception as e:
-        logging.error(f"Exception occurred during the refresh token task: {str(e)}")
+        logging.error(f"Task failed to refresh tokens!: {str(e)}")
 
 
 
@@ -56,6 +56,6 @@ def start_tasks(bot):
         logging.info("Starting refresh_token_task.")
         refresh_token_task.start()
     
-    if not update_moondrills_task.is_running():
-        logging.info("Starting update_moondrills_task.")
-        update_moondrills_task.start()
+    ###if not update_moondrills_task.is_running():
+    ###    logging.info("Starting update_moondrills_task.")
+    ###    update_moondrills_task.start()
