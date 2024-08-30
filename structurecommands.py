@@ -74,14 +74,17 @@ async def update_structure_info(server_id, moon_drill_ids):
 
     
 async def get_all_structure_assets(structure_ids, server_id):
-    CORPORATION_ID= extract_corporation_id_from_filename(server_id)
-    access_token = await get_access_token(server_id)
+    corporation_id = extract_corporation_id_from_filename(server_id)
+    
+    # Assuming get_access_token is synchronous
+    access_token = get_access_token(server_id, corporation_id)
+    
     if not access_token:
         logging.error('Failed to get access token')
         return 'Failed to get access token'
     
     headers = {'Authorization': f'Bearer {access_token}'}
-    url = f'https://esi.evetech.net/latest/corporations/{CORPORATION_ID}/assets/?datasource=tranquility'
+    url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/assets/?datasource=tranquility'
     
     async with aiohttp.ClientSession() as session:
         try:

@@ -223,7 +223,7 @@ async def handle_checkgas(ctx):
             server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
             # Save structure info in the JSON file
             await update_structure_info(server_id, moon_drill_ids)
-            save_server_structures(server_structures)
+            save_server_structures(server_structures, server_id)
             await ctx.send(f"Metenox Moondrills successfully updated.\n > Moondrill-ID's: \n > {moon_drill_ids}")
         else:
             await ctx.send("No moon drills found or an error occurred.")
