@@ -188,17 +188,26 @@ def load_server_structures():
         logging.error(f"Error decoding JSON from file: {e}")
         return {}
 
-def save_server_structures(server_structures):
+def save_server_structures(server_structures, server_id):
     """Save the server structures to the JSON file."""
     if not isinstance(server_structures, dict):
         raise ValueError("server_structures must be a dictionary.")
 
     try:
+        # Load existing data
+        existing_structures = load_server_structures()
+
+        # Update the existing data with the new structures
+        existing_structures[server_id] = server_structures
+
+        # Save the updated data
         with open(server_structures_file, 'w') as file:
-            json.dump(server_structures, file, indent=4)
+            json.dump(existing_structures, file, indent=4)
     except IOError as e:
         logging.error(f"Error saving server structures to JSON file: {e}")
         raise
+
+
 
 def load_all_tokens():
     """Load all tokens from files."""

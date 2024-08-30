@@ -4,8 +4,9 @@ import config
 from config import get_config, load_token, save_token
 from urllib.parse import quote
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
+import os
 import requests
 
 logging.basicConfig(level=logging.INFO)
@@ -28,23 +29,33 @@ def is_token_valid(created_at, expires_in):
         return False
 
 def is_token_expired(created_at, expires_in):
-    created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+    # Convert created_at to an aware datetime object
+    created_at = datetime.fromisoformat(created_at).replace(tzinfo=timezone.utc)
+    
+    # Calculate the expiration time
     expiration_time = created_at + timedelta(seconds=expires_in)
-    return datetime.utcnow() > expiration_time
+    
+    # Get the current UTC time as an aware datetime object
+    current_time = datetime.utcnow().replace(tzinfo=timezone.utc)
+    
+    # Compare the current time with the expiration time
+    return current_time > expiration_time
 
-async def get_access_token(server_id, corporation_id):
-    """Retrieve the access token, refreshing it if expired."""
+def get_access_token(server_id, corporation_id):
+    """Retrieve access token for a specific server and corporation."""
     token_data = load_token(server_id, corporation_id)
-
+    
     if not token_data:
-        logging.error(f"No tokens found for server {server_id}, corporation {corporation_id}.")
+        logging.error(f"No token data found for server {server_id}, corporation {corporation_id}.")
         return None
-
+    
+    # Ensure token is not expired
     if is_token_expired(token_data['created_at'], token_data['expires_in']):
-        logging.info(f"Token expired for server {server_id}, corporation {corporation_id}. Refreshing...")
-        response = await refresh_token(server_id, corporation_id)
-        return response.get('access_token') if response else None
-
+        logging.info(f"Token expired for server {server_id}, corporation {corporation_id}.")
+        # Handle token refresh logic here
+        # e.g., call refresh_token(server_id, corporation_id)
+        return None
+    
     return token_data['access_token']
 
 async def refresh_token(server_id, corporation_id):
@@ -183,4 +194,23 @@ def get_latest_token(server_id):
         return sorted_tokens[0]  # Return the latest token
 
     logging.error(f"No tokens found for server {server_id}.")
+    return None
+
+def extract_corporation_id_from_filename(server_id):
+    """Extract the corporation ID from the filename pattern serverid_corporationid.json."""
+    files = [f for f in os.listdir() if f.startswith(f"{server_id}_") and f.endswith("_token.json")]
+    if not files:
+        logging.error(f"No token file found for server {server_id}.")
+        return None
+    
+    # Extract corporation_id from the first matching file
+    filename = files[0]
+    try:
+        parts = filename.split('_')
+        if len(parts) >= 2:
+            corporation_id = parts[1]
+            return corporation_id
+    except IndexError:
+        logging.error(f"Error extracting corporation ID from filename {filename}.")
+    
     return None

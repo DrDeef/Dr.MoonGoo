@@ -114,66 +114,59 @@ async def handle_update_moondrills(ctx):
     # Fetch the new moon drill IDs
     moon_drill_ids = await get_moon_drills(server_id)
 
-    if moon_drill_ids:
-        # Load existing server structures
-        server_structures = load_server_structures()
+    # Load existing server structures
+    server_structures = load_server_structures()
 
-        # Debugging output
-        print(f"Type of server_structures: {type(server_structures)}")
-        print(f"Contents of server_structures: {server_structures}")
+    # Debugging output
+    print(f"Type of server_structures: {type(server_structures)}")
+    print(f"Contents of server_structures: {server_structures}")
 
-        # Ensure server_structures is a dictionary
-        if not isinstance(server_structures, dict):
-            logging.error(f"Expected server_structures to be a dict, got {type(server_structures)} instead.")
-            await ctx.send("An internal error occurred. Please try again later.")
-            return
+    # Ensure server_structures is a dictionary
+    if not isinstance(server_structures, dict):
+        logging.error(f"Expected server_structures to be a dict, got {type(server_structures)} instead.")
+        await ctx.send("An internal error occurred. Please try again later.")
+        return
 
-        # Update the server's moon drill IDs
-        if server_id not in server_structures:
-            server_structures[server_id] = {'metenox_moon_drill_ids': moon_drill_ids, 'structure_info': {}}
-        else:
-            server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
-
-        # Save the updated server structures to JSON
-        try:
-            save_server_structures(server_structures, server_id)
-        except ValueError as ve:
-            logging.error(f"Error in save_server_structures: {ve}")
-            await ctx.send("Failed to save server structures. Please try again later.")
-            return
-
-        # Fetch and update structure information
-        try:
-            await update_structure_info(server_id, moon_drill_ids)
-        except Exception as e:
-            logging.error(f"Error updating structure info: {e}")
-            await ctx.send("Failed to update structure information. Please try again later.")
-            return
-
-        # Reload the updated structure info
-        server_structures = load_server_structures()
-        structure_info = server_structures.get(server_id, {}).get('structure_info', {})
-
-        # Prepare the response with structure names and IDs
-        response_message = "Metenox Moondrills successfully updated.\n"
-        for moon_drill_id in moon_drill_ids:
-            structure_name = structure_info.get(str(moon_drill_id), 'Unknown Structure')
-            response_message += f"{moon_drill_id} - {structure_name}\n"
-
-        await ctx.send(response_message)
+    # Update the server's moon drill IDs
+    if server_id not in server_structures:
+        server_structures[server_id] = {'metenox_moon_drill_ids': moon_drill_ids, 'structure_info': {}}
     else:
-        # Ensure the server entry is present with an empty list if no IDs are found
-        server_structures = load_server_structures()
+        server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
 
-        # Debugging output
-        print(f"Type of server_structures: {type(server_structures)}")
-        print(f"Contents of server_structures: {server_structures}")
+    # Save the updated server structures to JSON
+    try:
+        save_server_structures(server_structures, server_id)
+    except ValueError as ve:
+        logging.error(f"Error in save_server_structures: {ve}")
+        await ctx.send("Failed to save server structures. Please try again later.")
+        return
 
-        if not isinstance(server_structures, dict):
-            logging.error(f"Expected server_structures to be a dict, got {type(server_structures)} instead.")
-            await ctx.send("An internal error occurred. Please try again later.")
-            return
+    # Fetch and update structure information
+    try:
+        await update_structure_info(server_id, moon_drill_ids)
+    except Exception as e:
+        logging.error(f"Error updating structure info: {e}")
+        await ctx.send("Failed to update structure information. Please try again later.")
+        return
 
+    # Reload the updated structure info
+    server_structures = load_server_structures()
+
+    # Access the nested structure_info correctly
+    server_data = server_structures.get(server_id, {})
+    inner_data = next(iter(server_data.values()), {})  # Get the first (and possibly only) nested dictionary
+    structure_info = inner_data.get('structure_info', {})
+
+    # Prepare the response with structure names and IDs
+    response_message = "Metenox Moondrills successfully updated.\n"
+    for moon_drill_id in moon_drill_ids:
+        structure_name = structure_info.get(str(moon_drill_id), 'what the fuck is this')
+        response_message += f"{moon_drill_id} - {structure_name}\n"
+
+    await ctx.send(response_message)
+
+    # If no moon drill IDs were found, update the server structures accordingly
+    if not moon_drill_ids:
         if server_id not in server_structures:
             server_structures[server_id] = {'metenox_moon_drill_ids': [], 'structure_info': {}}
         else:
@@ -185,8 +178,9 @@ async def handle_update_moondrills(ctx):
         except ValueError as ve:
             logging.error(f"Error in save_server_structures: {ve}")
             await ctx.send("Failed to save server structures. Please try again later.")
-
+        
         await ctx.send("No moon drills found or an error occurred.")
+
 
 
 async def handle_structure(ctx):

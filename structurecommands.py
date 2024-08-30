@@ -3,11 +3,9 @@ import logging
 import config
 import aiohttp
 import asyncio
-from administration import get_access_token, get_latest_token
+from administration import get_access_token, extract_corporation_id_from_filename
 from config import save_server_structures, load_server_structures, get_config
 
-
-CORPORATION_ID = config.get_config('corporation_id', '')
 
 
 def add_or_update_server(server_id, moon_drill_ids, structure_info):
@@ -25,7 +23,8 @@ def add_or_update_server(server_id, moon_drill_ids, structure_info):
 
 
 async def update_structure_info(server_id, moon_drill_ids):
-    access_token = await get_access_token(server_id)
+    corporation_id= extract_corporation_id_from_filename(server_id)
+    access_token = get_access_token(server_id, corporation_id)
     if not access_token:
         logging.error(f"Failed to get access token for server {server_id}.")
         return
@@ -68,13 +67,14 @@ async def update_structure_info(server_id, moon_drill_ids):
 
     try:
         save_server_structures(server_structures, server_id)
-        logging.info(f"Updated structure info for server {server_id}: {structure_info}")
+        logging.info(f"Saved structure info for server {server_id}: {structure_info} to JSON file")
     except Exception as e:
         logging.error(f"Error saving structure info to JSON file: {e}")
 
 
     
 async def get_all_structure_assets(structure_ids, server_id):
+    CORPORATION_ID= extract_corporation_id_from_filename(server_id)
     access_token = await get_access_token(server_id)
     if not access_token:
         logging.error('Failed to get access token')
@@ -111,19 +111,20 @@ async def get_all_structure_assets(structure_ids, server_id):
 
 
 async def get_moon_drills(server_id):
-    access_token = await get_access_token(server_id, CORPORATION_ID)
+    corporation_id = extract_corporation_id_from_filename(server_id)
+    if not corporation_id:
+        logging.error(f"No corporation ID available for server {server_id}.")
+        return []
+
+    # Call get_access_token without await since it's not async
+    access_token = get_access_token(server_id, corporation_id)
     if not access_token:
         logging.error(f"No access token available for server {server_id}. Cannot fetch moon drills.")
         return []
 
     headers = {'Authorization': f'Bearer {access_token}'}
-    corporation_id = get_latest_token(server_id).get('corporation_id')
-    if not corporation_id:
-        logging.error(f"No corporation ID available for server {server_id}.")
-        return []
-
     url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/structures/?datasource=tranquility'
-    
+
     logging.info(f"Fetching moon drills for server {server_id} from URL: {url} with headers: {headers}")
 
     async with aiohttp.ClientSession() as session:
@@ -158,7 +159,12 @@ async def get_moon_drills(server_id):
 
 
 async def get_structure_info(server_id, structure_id):
-    access_token = await get_access_token(server_id)
+    corporation_id = extract_corporation_id_from_filename(server_id)
+    if not corporation_id:
+        logging.error(f"Could not extract corporation ID for server {server_id}.")
+        return "Failed to get corporation ID."
+
+    access_token = get_access_token(server_id, corporation_id)
     if not access_token:
         logging.error(f"Failed to get access token for server {server_id}.")
         return "Failed to get access token."
@@ -174,7 +180,6 @@ async def get_structure_info(server_id, structure_id):
                 response.raise_for_status()
                 data = await response.json()
 
-                # Check if 'name' key exists in the response data
                 if 'name' in data:
                     structure_name = data['name']
                     logging.info(f"Successfully fetched structure info for server {server_id}, ID {structure_id}: {structure_name}")
@@ -195,17 +200,22 @@ async def get_structure_info(server_id, structure_id):
 
 
 
+
 async def get_structure_name(server_id, structure_id):
-    access_token = await get_access_token(server_id)
+    corporation_id = extract_corporation_id_from_filename(server_id)
+    if not corporation_id:
+        logging.error(f"Could not extract corporation ID for server {server_id}.")
+        return 'Failed to get corporation ID'
+
+    access_token = get_access_token(server_id, corporation_id)
     if not access_token:
         logging.error(f"Failed to get access token for server {server_id}")
         return 'Failed to get access token'
 
     headers = {'Authorization': f'Bearer {access_token}'}
-    corporation_id = get_config('corporation_id', '')
     url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/structures/{structure_id}/?datasource=tranquility'
 
-    logging.info(f"Fetching structure name for server {server_id} and structure {structure_id} from URL: {url} with headers: {headers}")
+    logging.info(f"Fetching structure name for server {server_id} and structure {structure_id} from URL: {url} with headers: {headers} and token: {access_token}")
 
     async with aiohttp.ClientSession() as session:
         try:
@@ -223,6 +233,7 @@ async def get_structure_name(server_id, structure_id):
             logging.error(f"Request error for server {server_id}: {e}")
             return 'Unknown Structure'
 
+      
 def load_moon_drill_ids(server_id):
     """Load moon drill IDs for a specific server from the JSON file."""
     try:
