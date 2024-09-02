@@ -176,39 +176,24 @@ async def handle_update_moondrills(ctx):
 
 
 
-
-async def handle_structure(ctx):
-    # Extract the structure ID from the command arguments
-    if len(ctx.args) < 1:
-        await ctx.send("Please provide a structure ID.")
-        return
-    
-    structure_id = ctx.args[0]
-    
-    # Load existing server structures
-    server_structures = load_server_structures()
-    
-    # Check if the structure ID is present in the structure_info of any server
-    structure_info = 'Structure info not found.'
-    for server_data in server_structures.values():
-        if structure_id in server_data.get('structure_info', {}):
-            structure_info = server_data['structure_info'][structure_id]
-            break
-    
-    await ctx.send(structure_info if structure_info != 'Structure info not found.' else f"Structure ID {structure_id} not found.")
-
 async def handle_checkgas(ctx):
     server_id = str(ctx.guild.id)  # Get the server ID from the context
 
     # Load server structures from JSON file
     server_structures = load_server_structures()
 
+    # Check if server_id exists in server_structures
     if server_id not in server_structures:
-        await ctx.send(".")
+        await ctx.send("Server ID not found in the data.")
+        return
+
+    # Check if the server_data contains the expected nested structure
+    server_data = server_structures.get(server_id, {})
+    if not isinstance(server_data, dict):
+        await ctx.send("Server data is not in the expected format.")
         return
 
     # Access the structure info and moon drill IDs from the correct level
-    server_data = server_structures.get(server_id, {}).get(server_id, {})
     structure_info = server_data.get('structure_info', {})
     moon_drill_ids = server_data.get('metenox_moon_drill_ids', [])
 
@@ -216,10 +201,10 @@ async def handle_checkgas(ctx):
     if not moon_drill_ids:
         moon_drill_ids = await get_moon_drills(server_id)
         if moon_drill_ids:
-            server_structures[server_id][server_id]['metenox_moon_drill_ids'] = moon_drill_ids
+            server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
             # Save structure info in the JSON file
             await update_structure_info(server_id, moon_drill_ids)
-            save_server_structures(server_structures, server_id)
+            save_server_structures(server_structures)
             await ctx.send(f"Metenox Moondrills successfully updated.\n > Moondrill-IDs: \n > {moon_drill_ids}")
         else:
             await ctx.send("No moon drills found or an error occurred.")
@@ -242,7 +227,6 @@ async def handle_checkgas(ctx):
         # Retrieve the correct structure name using the structure ID
         structure_name = structure_info.get(str(structure_id), 'Unknown Structure')
         
-
         asset_totals = {'Magmatic Gas': 0, 'Fuel Blocks': 0}
 
         for asset in assets_info:
@@ -287,6 +271,7 @@ async def handle_checkgas(ctx):
             await ctx.send(chunk)
     else:
         await ctx.send(gas_info)
+
 
 
 
