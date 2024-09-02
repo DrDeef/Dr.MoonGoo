@@ -197,8 +197,8 @@ def save_server_structures(server_structures, server_id):
         # Load existing data
         existing_structures = load_server_structures()
 
-        # Update the existing data with the new structures
-        existing_structures[server_id] = server_structures
+        # Update the existing data with the new structures for the specific server_id
+        existing_structures[server_id] = server_structures.get(server_id, {})
 
         # Save the updated data
         with open(server_structures_file, 'w') as file:

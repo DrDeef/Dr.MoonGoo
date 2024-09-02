@@ -117,21 +117,18 @@ async def handle_update_moondrills(ctx):
     # Load existing server structures
     server_structures = load_server_structures()
 
-    # Debugging output
-    print(f"Type of server_structures: {type(server_structures)}")
-    print(f"Contents of server_structures: {server_structures}")
-
     # Ensure server_structures is a dictionary
     if not isinstance(server_structures, dict):
         logging.error(f"Expected server_structures to be a dict, got {type(server_structures)} instead.")
         await ctx.send("An internal error occurred. Please try again later.")
         return
 
-    # Update the server's moon drill IDs
+    # Prepare the data to be saved
     if server_id not in server_structures:
-        server_structures[server_id] = {'metenox_moon_drill_ids': moon_drill_ids, 'structure_info': {}}
-    else:
-        server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
+        server_structures[server_id] = {'metenox_moon_drill_ids': [], 'structure_info': {}}
+
+    # Update the server's moon drill IDs
+    server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
 
     # Save the updated server structures to JSON
     try:
@@ -151,16 +148,12 @@ async def handle_update_moondrills(ctx):
 
     # Reload the updated structure info
     server_structures = load_server_structures()
-
-    # Access the nested structure_info correctly
-    server_data = server_structures.get(server_id, {})
-    inner_data = next(iter(server_data.values()), {})  # Get the first (and possibly only) nested dictionary
-    structure_info = inner_data.get('structure_info', {})
+    structure_info = server_structures.get(server_id, {}).get('structure_info', {})
 
     # Prepare the response with structure names and IDs
     response_message = "Metenox Moondrills successfully updated.\n"
     for moon_drill_id in moon_drill_ids:
-        structure_name = structure_info.get(str(moon_drill_id), 'what the fuck is this')
+        structure_name = structure_info.get(str(moon_drill_id), 'Unknown structure')
         response_message += f"{moon_drill_id} - {structure_name}\n"
 
     await ctx.send(response_message)
@@ -180,6 +173,7 @@ async def handle_update_moondrills(ctx):
             await ctx.send("Failed to save server structures. Please try again later.")
         
         await ctx.send("No moon drills found or an error occurred.")
+
 
 
 
