@@ -213,23 +213,25 @@ async def handle_checkgas(ctx):
         await ctx.send(".")
         return
 
-    structure_info = server_structures[server_id].get('structure_info', {})
-    moon_drill_ids = server_structures[server_id].get('metenox_moon_drill_ids', [])
+    # Access the structure info and moon drill IDs from the correct level
+    server_data = server_structures.get(server_id, {}).get(server_id, {})
+    structure_info = server_data.get('structure_info', {})
+    moon_drill_ids = server_data.get('metenox_moon_drill_ids', [])
 
     # Update moon drills and structure info if the list is empty
     if not moon_drill_ids:
         moon_drill_ids = await get_moon_drills(server_id)
         if moon_drill_ids:
-            server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
+            server_structures[server_id][server_id]['metenox_moon_drill_ids'] = moon_drill_ids
             # Save structure info in the JSON file
             await update_structure_info(server_id, moon_drill_ids)
             save_server_structures(server_structures, server_id)
-            await ctx.send(f"Metenox Moondrills successfully updated.\n > Moondrill-ID's: \n > {moon_drill_ids}")
+            await ctx.send(f"Metenox Moondrills successfully updated.\n > Moondrill-IDs: \n > {moon_drill_ids}")
         else:
             await ctx.send("No moon drills found or an error occurred.")
             return
 
-    # Prepare to fetch and process asset information
+    # Fetch and process asset information
     gas_info = ""
     all_assets_info = await get_all_structure_assets(moon_drill_ids, server_id)
 
@@ -243,14 +245,11 @@ async def handle_checkgas(ctx):
         return
 
     for structure_id, assets_info in all_assets_info.items():
-        # Ensure structure_id is treated as string when accessing structure_info
+        # Retrieve the correct structure name using the structure ID
         structure_name = structure_info.get(str(structure_id), 'Unknown Structure')
+        
 
-        # Prepare to aggregate asset quantities
-        asset_totals = {
-            'Magmatic Gas': 0,
-            'Fuel Blocks': 0
-        }
+        asset_totals = {'Magmatic Gas': 0, 'Fuel Blocks': 0}
 
         for asset in assets_info:
             type_id = asset.get('type_id')
@@ -261,7 +260,9 @@ async def handle_checkgas(ctx):
             elif type_id in [4312, 4246, 4247, 4051]:  # Type IDs for Fuel Blocks
                 asset_totals['Fuel Blocks'] += quantity
 
-        # Calculate depletion times
+        magmatic_gas_amount = asset_totals['Magmatic Gas']
+        fuel_blocks_amount = asset_totals['Fuel Blocks']
+
         def calculate_depletion_time(amount, rate_per_hour):
             if amount <= 0 or rate_per_hour <= 0:
                 return "Unknown"
@@ -276,21 +277,16 @@ async def handle_checkgas(ctx):
 
             return f"> {depletion_time.strftime('%Y-%m-%d %H:%M:%S')} UTC - {int(days)} Days {int(hours)} Hours remaining"
 
-        magmatic_gas_amount = asset_totals['Magmatic Gas']
-        fuel_blocks_amount = asset_totals['Fuel Blocks']
-        
         magmatic_gas_depletion_time = calculate_depletion_time(magmatic_gas_amount, 55)  # 55 units per hour
         fuel_blocks_depletion_time = calculate_depletion_time(fuel_blocks_amount, 5)  # 5 units per hour
-        
-        # Format the response with Discord markdown
+
         gas_info += f"**{structure_name}**\n"
         gas_info += f"> __Magmatic Gas__: ***{magmatic_gas_amount}*** is left\n"
         gas_info += f" Gas runs out in: {magmatic_gas_depletion_time}\n"
         gas_info += f"> __Fuel Blocks__: ***{fuel_blocks_amount}*** are left\n"
         gas_info += f" Fuel runs out in: {fuel_blocks_depletion_time}\n"
-        gas_info += "\n"  # Add a newline for separation
+        gas_info += "\n"
 
-    # Send message in chunks if necessary
     if len(gas_info) > 2000:
         chunks = [gas_info[i:i + 2000] for i in range(0, len(gas_info), 2000)]
         for chunk in chunks:

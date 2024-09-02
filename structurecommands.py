@@ -23,7 +23,7 @@ def add_or_update_server(server_id, moon_drill_ids, structure_info):
 
 
 async def update_structure_info(server_id, moon_drill_ids):
-    corporation_id= extract_corporation_id_from_filename(server_id)
+    corporation_id = extract_corporation_id_from_filename(server_id)
     access_token = get_access_token(server_id, corporation_id)
     if not access_token:
         logging.error(f"Failed to get access token for server {server_id}.")
@@ -38,38 +38,41 @@ async def update_structure_info(server_id, moon_drill_ids):
 
             try:
                 async with session.get(url, headers=headers) as response:
-                    response.raise_for_status()
-                    data = await response.json()
+                    if response.status == 200:
+                        data = await response.json()
 
-                    # Check for valid response
-                    if 'name' in data:
-                        structure_name = data['name']
-                        structure_info[structure_id] = structure_name
-                        logging.info(f"Fetched structure name for ID {structure_id}: {structure_name}")
+                        # Debugging log: Show the full response
+                        logging.debug(f"Structure ID {structure_id} response data: {data}")
+
+                        if 'name' in data:
+                            structure_name = data['name']
+                            structure_info[str(structure_id)] = structure_name
+                            logging.info(f"Fetched structure name for ID {structure_id}: {structure_name}")
+                        else:
+                            logging.error(f"Unexpected response format for server {server_id}, ID {structure_id}: {data}")
+                            structure_info[str(structure_id)] = 'Unknown Structure'
                     else:
-                        logging.error(f"Unexpected response format for server {server_id}, ID {structure_id}: {data}")
-                        structure_info[structure_id] = 'Unknown Structure'
+                        logging.error(f"Failed to fetch data for structure ID {structure_id}: HTTP {response.status}")
+                        structure_info[str(structure_id)] = 'Unknown Structure'
             except aiohttp.ClientError as e:
                 logging.error(f"Request error for server {server_id}, ID {structure_id}: {e}")
-                structure_info[structure_id] = 'Unknown Structure'
+                structure_info[str(structure_id)] = 'Unknown Structure'
 
     # Load and update server structures
     server_structures = load_server_structures()
 
-    if not isinstance(server_structures, dict):
-        logging.error(f"Expected server_structures to be a dict, got {type(server_structures)} instead.")
-        return
+    if server_id not in server_structures:
+        server_structures[server_id] = {}
 
-    server_structures[server_id] = {
-        'metenox_moon_drill_ids': moon_drill_ids,
-        'structure_info': structure_info
-    }
+    server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
+    server_structures[server_id]['structure_info'] = structure_info
 
     try:
         save_server_structures(server_structures, server_id)
         logging.info(f"Saved structure info for server {server_id}: {structure_info} to JSON file")
     except Exception as e:
         logging.error(f"Error saving structure info to JSON file: {e}")
+
 
 
     
