@@ -6,6 +6,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from config import save_server_structures
 from structurecommands import get_all_structure_assets, get_moon_drills
+from administration import extract_corporation_id_from_filename
 from moongoo import get_moon_goo_items
 
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +35,14 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
     moon_goo_items = get_moon_goo_items()
     logging.info(f"Loaded moon goo items: {moon_goo_items}")
 
+    server_id = str(ctx.guild.id)
+
+    # Get the corporation ID dynamically from the filename
+    corporation_id = extract_corporation_id_from_filename(server_id)
+    if not corporation_id:
+        await ctx.send("Corporation ID could not be determined.")
+        return
+
     # Define the JSON file path
     structure_info_file = f"{server_id}_{corporation_id}_structures.json"
 
@@ -50,48 +59,42 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
         await ctx.send(f"Error reading '{structure_info_file}'. Please ensure the file is correctly formatted.")
         return
 
-    # Get the server ID from the context
-    server_id = str(ctx.guild.id)
-
     # Get all moon drill structure IDs from the configuration
-    moon_drill_ids = server_structures.get(server_id, {}).get('metenox_moon_drill_ids', [])
+    moon_drill_ids = server_structures.get('metenox_moon_drill_ids', [])
 
     if not moon_drill_ids:
-        moon_drill_ids = await get_moon_drills()
+        moon_drill_ids = await get_moon_drills(server_id)
         if moon_drill_ids:
             # Update server structures with new moon drill IDs
-            if server_id not in server_structures:
-                server_structures[server_id] = {'metenox_moon_drill_ids': moon_drill_ids, 'structure_info': {}}
-            else:
-                server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
-            
-            # Save the updated server structures to JSON
-            save_server_structures(server_structures)
+            server_structures['metenox_moon_drill_ids'] = moon_drill_ids
+            save_server_structures(server_structures, server_id, corporation_id)
         else:
             await ctx.send("No moon drills found or an error occurred.")
             return
 
     moon_drill_assets = defaultdict(lambda: defaultdict(int))
-    
+
     async def fetch_and_aggregate_assets(ids):
-        all_assets_info = await get_all_structure_assets(ids, server_id)  # Correct argument order
+        all_assets_info = await get_all_structure_assets(ids, server_id)  # Fetch assets for the structure IDs
         if isinstance(all_assets_info, str):
             await ctx.send(all_assets_info)
             return
 
         for structure_id, assets_info in all_assets_info.items():
-            # Filter by structure name if provided
-            structure_name_in_info = server_structures.get(server_id, {}).get('structure_info', {}).get(str(structure_id), 'Unknown Structure')
+            # Get the correct structure name from the JSON or fall back to Unknown Structure
+            structure_name_in_info = server_structures.get('structure_info', {}).get(str(structure_id), f"Unknown Structure (ID: {structure_id})")
+            
+            # If structure_name is provided in the function argument, filter based on that
             if structure_name and structure_name_in_info != structure_name:
                 continue
 
             for asset in assets_info:
                 type_id = asset.get('type_id')
                 quantity = asset.get('quantity', 0)
-                
+
                 if type_id in moon_goo_items:
                     item_name = moon_goo_items[type_id]
-                    moon_drill_assets[structure_id][item_name] += quantity
+                    moon_drill_assets[structure_name_in_info][item_name] += quantity
 
     # Fetch all assets in chunks to avoid timeout issues
     chunk_size = 100  # Adjust this as needed
@@ -102,12 +105,10 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
         await ctx.send("No moon goo data found.")
         return
 
-    # Prepare response message
+    # Prepare the response message with proper structure names
     response_message = ""
-    for structure_id, assets in moon_drill_assets.items():
-        structure_name = server_structures.get(server_id, {}).get('structure_info', {}).get(str(structure_id), 'Unknown Structure')
-        response_message += f"**{structure_name} (ID: {structure_id})**\n"
-        
+    for structure_name, assets in moon_drill_assets.items():
+        response_message += f"**{structure_name}**\n"
         for item_name, total_quantity in assets.items():
             response_message += f"__{item_name}__: ***{total_quantity}***\n"
         response_message += "\n"  # Add a newline for separation
@@ -115,13 +116,14 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
     # Save the aggregated moon drill assets to JSON
     await save_moon_goo_to_json(moon_drill_assets)
 
-    # Send message in chunks if necessary
+    # Send the message in chunks if necessary
     if len(response_message) > 2000:
         chunks = [response_message[i:i + 2000] for i in range(0, len(response_message), 2000)]
         for chunk in chunks:
             await ctx.send(chunk)
     else:
         await ctx.send(response_message)
+
 
 async def update_moon_goo_items_in_json():
     moon_goo_items = get_moon_goo_items()
