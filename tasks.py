@@ -13,32 +13,37 @@ async def refresh_token_task():
     except Exception as e:
         logging.error(f"Task failed to refresh tokens!: {str(e)}")
 
-
-
 # Task to update moon drills
 @tasks.loop(minutes=30)
 async def update_moondrills_task():
     try:
-        # Load server structures from JSON file
-        server_structures = load_server_structures()
-        if not server_structures:
-            logging.error("No server structures found.")
+        # Iterate over each server configured
+        server_list = config.get_config('server_list')
+        if not server_list:
+            logging.error("No servers found in the configuration.")
             return
 
-        # Iterate over each server ID in the server structures
-        for server_id, data in server_structures.items():
+        for server_id in server_list:
             try:
-                # Get the moon drill IDs for the current server
-                moon_drill_ids = await get_moon_drills(server_id)
+                # Load the corporation ID for the current server
+                corporation_id = config.get_config('corporation_id', server_id)
                 
+                # Load the server structures from JSON using server_id and corporation_id
+                server_structures = load_server_structures(server_id, corporation_id)
+                if not server_structures:
+                    logging.error(f"No structures found for server {server_id}.")
+                    continue
+                
+                # Get moon drill IDs for the current server
+                moon_drill_ids = await get_moon_drills(server_id)
                 if moon_drill_ids:
                     logging.info(f"Moon drills updated for server {server_id}: {moon_drill_ids}")
-
-                    # Update the moon drill IDs in the server structures
-                    server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
                     
-                    # Save the updated server structures to the JSON file
-                    save_server_structures(server_structures, server_id)
+                    # Update the moon drill IDs in the server structures
+                    server_structures['metenox_moon_drill_ids'] = moon_drill_ids
+                    
+                    # Save the updated server structures
+                    save_server_structures(server_structures, server_id, corporation_id)
                 else:
                     logging.error(f"No moon drills found or an error occurred for server {server_id}.")
             
@@ -46,9 +51,7 @@ async def update_moondrills_task():
                 logging.error(f"Exception occurred while updating moon drills for server {server_id}: {str(e)}")
 
     except Exception as e:
-        logging.error(f"Exception occurred while loading server structures: {str(e)}")
-
-
+        logging.error(f"Exception occurred while updating moon drills: {str(e)}")
 
 # Function to start tasks
 def start_tasks(bot):
@@ -56,6 +59,6 @@ def start_tasks(bot):
         logging.info("Starting refresh_token_task.")
         refresh_token_task.start()
     
-    ###if not update_moondrills_task.is_running():
-    ###    logging.info("Starting update_moondrills_task.")
-    ###    update_moondrills_task.start()
+    if not update_moondrills_task.is_running():
+        logging.info("Starting update_moondrills_task.")
+        update_moondrills_task.start()

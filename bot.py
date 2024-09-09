@@ -231,24 +231,7 @@ def tos():
 def privacy():
     return render_template('policy.html')
 
-bot_version = "0.1"  
-
-#@app.route('/bot_stats')
-#def bot_stats():
-#    current_time = datetime.utcnow()
-#    uptime = current_time - bot_start_time
-#
-#    stats = {
-#        'current_time': current_time,
-#        'uptime': str(uptime),
-#        'version': bot_version##,
-#        'server_count': len(server_structures),
-#        'moon_drill_count': get_moon_drill_count()
-#    }
-#
-#    return render_template('bot_stats.html', stats=stats)
-#
-
+bot_version = "0.2"  
 
 #### bot start, do not edit!
 if __name__ == "__main__":
