@@ -5,7 +5,7 @@ FROM python:3.12-slim
 WORKDIR /usr/src/app
 
 # Copy only the specified files into the container at /usr/src/app
-COPY administration.py bot.py commands.py config.py structurecommands.py  scheduler.py  moongoo.py moongoo_commands.py tasks.py requirements.txt ./
+COPY administration.py bot.py bot_statistics.py config.py commands.py structurecommands.py  scheduler.py  moongoo.py moongoo_commands.py tasks.py requirements.txt ./
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt

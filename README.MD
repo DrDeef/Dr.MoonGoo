@@ -1,4 +1,4 @@
-![Version](https://img.shields.io/badge/version-0.1-green) ![Docker Pulls](https://img.shields.io/docker/pulls/drdeef/drmoongoo) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/drdeef/Dr.MoonGoo?style=flat&color=yellow)
+![Version](https://img.shields.io/badge/version-0.2-green) ![Docker Pulls](https://img.shields.io/docker/pulls/drdeef/drmoongoo) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/drdeef/Dr.MoonGoo?style=flat&color=yellow)
 
 
 
@@ -13,6 +13,7 @@
 
 https://discord.com/oauth2/authorize?client_id=1242230305541197864
 
+
 ## Features
 
 - **OAuth2 Authentication**: Securely authenticate with the EVE Online API.
@@ -20,11 +21,17 @@ https://discord.com/oauth2/authorize?client_id=1242230305541197864
 - **Goo-Alert**: Set a channel to check for Gas and Fuel levels every hour and alerts you if it falls short.
   - An alert will be send 48 Hours and 24 Hours in regards of the depletion of the Gas / Fuel
 - **Gas Check**: Monitor gas levels in moon drilling structures and receive alerts if gas is low.
-- **Goo Check**: Print out the amount of materials the drill has in its 'assets'.
-- **Administrative Commands**: Manage alert channels and update moon drill IDs with ease.
+- **Goo Check**: Print out the amount of materials the drill has accumulated until now.
 
 
-## Standalone Setup:
+## Getting started
+
+- !authenticate: Authenticate yourself against the ESI
+- !updatemoondrills: Fetch the latest structures in your corporations
+- !checkGoo: Prints out the current Goo Status of your strucutres
+- !selectalertchannel: Select the channel you wanna be alerted to...
+
+## Standalone Setup
 
 ### Dockerfile
 
@@ -36,7 +43,7 @@ Or you build your Dockerimage yourself with the `Dockerfile`
 Run the Container with:
 
 ```bash
-docker run -d -p 5005:5005 -v /path/to/local/config.yaml:/usr/src/app/config.yaml drdeef/drmoongoo:0.0.1
+docker run -d -p 5005:5005 -v /path/to/local/config.yaml:/usr/src/app/config.yaml drdeef/drmoongoo:0.1
 ```
 
 ### Without Docker
@@ -60,8 +67,14 @@ docker run -d -p 5005:5005 -v /path/to/local/config.yaml:/usr/src/app/config.yam
 ```bash
    pip install -r requirements.txt
 ```
+4. **Run the Bot:**
 
-## Overall configuration:
+```bash
+   python bot.py
+```
+
+
+## Standalone configuration:
 
 1. **Eve Online Scopes**
 
@@ -95,24 +108,11 @@ Permission Integer
 Update the config.yaml to your needs:
 
 ```bash
-alert_threshold: 500
-corporation_id: 'CORP-ID'
 discord_bot_token: YOUR_DISCORD_BOT_TOKEN
 eve_online_callback_url: http://localhost:5005/oauth-callback
 eve_online_client_id: YOUR_EVE_ONLINE_CLIENT_ID
 eve_online_secret_key: YOUR_EVE_ONLINE_SECRET_KEY
 ```
-
-4. **First Startup Sequence**
-
-- !authenticate: NEEDED! Authenticate against the EvE ESI via SSO
-
-*Optional:*
-
-- !getMeGoo: Will run a few basic setup routines.
-  - Will update your Moondrill structures, Gas & Fuel Levels, and the Goo Assets etc...
-- !updatemoondrills: Update your Moondrill structures on demand
-- !selectalertchannel: Select the channel you wanna be alerted to...
 
 ## Magmatic Gas & Fuelblock Calculation
 
@@ -149,9 +149,10 @@ Gas runs out in: **0 Days 8 Hours**
 - **!selectalertchannel**: Select the channel you wanna be alerted to.
 - **!spacegoblin**: Guess who is a good spacegoblin?
 
-## Presented by Regnum Astera
+## Presented by Mem3nto Mori & Regnum Astera
 
-[![Regnum Astera](https://e.dotlan.net/images/Alliance/99012040_128.png)](https://discord.gg/uPkd893FZV)
+[![Mem3nto Mori](https://images.evetech.net/corporations/98676479/logo?size=128)](https://discord.gg/kU3EsHnjVc)[![Regnum Astera](https://e.dotlan.net/images/Alliance/99012040_128.png)](https://discord.gg/uPkd893FZV)
+
 
 If you’re looking for a strong and dedicated EVE Online alliance to join, consider **Regnum Astera**!
 Join us and be part of something epic!

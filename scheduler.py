@@ -5,6 +5,7 @@ import requests
 import config
 import logging
 from administration import get_access_token
+from config import load_server_structures
 import json
 import os
 import discord
@@ -22,9 +23,6 @@ last_alert_times = {
     'fuel_blocks': {}
 }
 
-
-
-# Scheduler function to check alerts for all servers
 async def run_alert_scheduler(bot, server_id):
     while True:
         alert_channels = config.load_alert_channels()
@@ -75,48 +73,11 @@ async def check_gas_and_send_alerts(bot, alert_channel, server_id):
         magmatic_gas_depletion_time, magmatic_gas_days, magmatic_gas_hours = calculate_depletion_time(magmatic_gas_amount, 55)
         fuel_blocks_depletion_time, fuel_blocks_days, fuel_blocks_hours = calculate_depletion_time(fuel_blocks_amount, 5)
 
-        # Magmatic Gas alert logic
-        if magmatic_gas_days < 2 or (magmatic_gas_days == 1 and magmatic_gas_hours < 24):
-            if structure_name not in last_alert_times['magmatic_gas']:
-                last_alert_times['magmatic_gas'][structure_name] = {
-                    '48h': None,
-                    '24h': None
-                }
-            
-            # Check 48h alert
-            if magmatic_gas_days == 2 and (last_alert_times['magmatic_gas'][structure_name]['48h'] is None or 
-                                           current_time - last_alert_times['magmatic_gas'][structure_name]['48h'] >= timedelta(days=1)):
-                await alert_channel.send(f"**{structure_name}**: Magmatic Gas is running low!\nMagmatic Gas: ***{magmatic_gas_amount}***\nGas runs out in: {magmatic_gas_days} Days {magmatic_gas_hours} Hours")
-                last_alert_times['magmatic_gas'][structure_name]['48h'] = current_time
-            
-            # Check 24h alert
-            elif magmatic_gas_days == 1 and (last_alert_times['magmatic_gas'][structure_name]['24h'] is None or 
-                                             current_time - last_alert_times['magmatic_gas'][structure_name]['24h'] >= timedelta(days=1)):
-                await alert_channel.send(f"**{structure_name}**: Magmatic Gas is running low!\nMagmatic Gas: ***{magmatic_gas_amount}***\nGas runs out in: {magmatic_gas_days} Days {magmatic_gas_hours} Hours")
-                last_alert_times['magmatic_gas'][structure_name]['24h'] = current_time
-
-        # Fuel Blocks alert logic
-        if fuel_blocks_days < 2 or (fuel_blocks_days == 1 and fuel_blocks_hours < 24):
-            if structure_name not in last_alert_times['fuel_blocks']:
-                last_alert_times['fuel_blocks'][structure_name] = {
-                    '48h': None,
-                    '24h': None
-                }
-
-            # Check 48h alert
-            if fuel_blocks_days == 2 and (last_alert_times['fuel_blocks'][structure_name]['48h'] is None or 
-                                          current_time - last_alert_times['fuel_blocks'][structure_name]['48h'] >= timedelta(days=1)):
-                await alert_channel.send(f"**{structure_name}**: Fuel Blocks are running low!\nFuel Blocks: ***{fuel_blocks_amount}***\nFuel runs out in: {fuel_blocks_days} Days {fuel_blocks_hours} Hours")
-                last_alert_times['fuel_blocks'][structure_name]['48h'] = current_time
-            
-            # Check 24h alert
-            elif fuel_blocks_days == 1 and (last_alert_times['fuel_blocks'][structure_name]['24h'] is None or 
-                                            current_time - last_alert_times['fuel_blocks'][structure_name]['24h'] >= timedelta(days=1)):
-                await alert_channel.send(f"**{structure_name}**: Fuel Blocks are running low!\nFuel Blocks: ***{fuel_blocks_amount}***\nFuel runs out in: {fuel_blocks_days} Days {fuel_blocks_hours} Hours")
-                last_alert_times['fuel_blocks'][structure_name]['24h'] = current_time
+        # Use helper function for alerts
+        await handle_alerts(alert_channel, structure_name, 'magmatic_gas', magmatic_gas_days, magmatic_gas_hours, magmatic_gas_amount, current_time)
+        await handle_alerts(alert_channel, structure_name, 'fuel_blocks', fuel_blocks_days, fuel_blocks_hours, fuel_blocks_amount, current_time)
 
 
-# Helper function to handle alerts
 async def handle_alerts(alert_channel, structure_name, alert_type, days, hours, amount, current_time):
     if days < 2 or (days == 1 and hours < 24):
         if structure_name not in last_alert_times[alert_type]:
@@ -137,8 +98,8 @@ async def handle_alerts(alert_channel, structure_name, alert_type, days, hours, 
             await alert_channel.send(f"**{structure_name}**: {alert_type.replace('_', ' ').title()} is running low!\n{alert_type.replace('_', ' ').title()}: ***{amount}***\nRuns out in: {days} Days {hours} Hours")
             last_alert_times[alert_type][structure_name]['24h'] = current_time
 
-# Helper function for structure alerts
 
+# Helper function for structure alerts
 async def get_all_structure_assets_for_server(structure_ids, server_id):
     access_token = await get_access_token(server_id)
     if not access_token:
@@ -160,6 +121,7 @@ async def get_all_structure_assets_for_server(structure_ids, server_id):
             all_assets[structure_id] = assets
     
     return all_assets
+
 
 
 # Function to calculate depletion time
@@ -198,11 +160,3 @@ async def get_all_structure_assets(structure_ids, server_id):
             all_assets[structure_id] = assets
     
     return all_assets
-
-# Function to load server structures
-def load_server_structures():
-    server_structures_file = 'server_structures.json'
-    if os.path.exists(server_structures_file):
-        with open(server_structures_file, 'r') as file:
-            return json.load(file)
-    return {}

@@ -10,7 +10,6 @@ tokens = {}
 states = {}
 config_file = 'config.yaml'
 tokens_file = 'tokens.json'
-server_structures_file = 'server_structures.json'
 alert_channel_file = 'alert_channels.json'
 
 def load_config():
@@ -23,7 +22,6 @@ def load_config():
             'admin_channels': [],
             'alert_channel_id': None,
             'alert_threshold': 500,
-            'corporation_id': '',
             'discord_bot_token': '',
             'eve_online_callback_url': '',
             'eve_online_client_id': '',
@@ -39,56 +37,75 @@ def save_config(config_data):
     except IOError as e:
         logging.error(f"Error saving configuration: {e}")
 
+def load_token(server_id, corporation_id):
+    """Load the token for a specific server and corporation from a file."""
+    filename = f"{server_id}_{corporation_id}_token.json"
 
-def load_tokens():
+    if not os.path.exists(filename):
+        logging.error(f"No token file found for server {server_id} and corporation {corporation_id}.")
+        return {}
+
     try:
-        with open(tokens_file, 'r') as file:
-            return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}  # Return an empty dictionary if tokens cannot be loaded
+        with open(filename, 'r') as file:
+            token_data = json.load(file)
+        logging.info(f"Token for server {server_id} and corporation {corporation_id} loaded from {filename}.")
+        return token_data
+    except Exception as e:
+        logging.error(f"Error loading token from file {filename}: {str(e)}")
+        return {}
 
-def save_tokens(server_id, access_token, refresh_token, expires_in):
-    try:
-        # Load existing tokens
-        with open(tokens_file, 'r') as file:
-            file_content = file.read().strip()
-            if file_content:
-                all_tokens = json.loads(file_content)
-            else:
-                all_tokens = {}
-    except (FileNotFoundError, json.JSONDecodeError):
-        all_tokens = {}
+def initialize_tokens_file():
+    if not os.path.exists(tokens_file) or os.path.getsize(tokens_file) == 0:
+        with open(tokens_file, 'w') as file:
+            json.dump({}, file, indent=4)
+        logging.info("Initialized empty tokens.json file.")
 
-    # Ensure server_id is a string to use as a dictionary key
-    server_id_str = str(server_id)
+def save_token(server_id, corporation_id, access_token, refresh_token, expires_in, created_at, character_id):
+    """Save the token for a specific server and corporation to a file."""
+    filename = f"{server_id}_{corporation_id}_token.json"
 
-    # Update tokens for the specific server_id
-    all_tokens[server_id_str] = {
-        'access_token': access_token,
-        'refresh_token': refresh_token,
-        'expires_in': expires_in,
-        'created_at': datetime.utcnow().isoformat()
+    token_data = {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_in": expires_in,
+        "created_at": created_at,
+        "character_id": character_id
     }
 
-    # Save updated tokens back to the file
-    with open(tokens_file, 'w') as file:
-        json.dump(all_tokens, file, indent=4)
-
+    try:
+        with open(filename, 'w') as file:
+            json.dump(token_data, file, indent=4)
+        logging.info(f"Token for server {server_id} and corporation {corporation_id} saved to {filename}.")
+    except Exception as e:
+        logging.error(f"Error saving token to file {filename}: {str(e)}")
 
 def get_server_tokens(server_id):
-    # Make sure server_id is a string
-    server_id_str = str(server_id)
-    # Load tokens from file or database
-    tokens = load_tokens()
-    return tokens.get(server_id_str, {})
+    """Get all tokens for a specific server."""
+    server_tokens = {}
+    for filename in os.listdir():
+        if filename.startswith(f"{server_id}_") and filename.endswith("_token.json"):
+            corporation_id = filename.split('_')[1]
+            token_data = load_token(server_id, corporation_id)
+            if token_data:
+                server_tokens[corporation_id] = token_data
+    return server_tokens
 
 def add_server_id(server_id):
+    """Add a server ID placeholder for future use."""
+    logging.info(f"Server ID {server_id} has been added.")
+
+def update_tokens(server_id):
+    """Update tokens for a specific server in the tokens file."""
     # Load existing tokens
-    tokens = load_tokens()
-    
+    try:
+        with open(tokens_file, 'r') as file:
+            tokens = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        tokens = {}
+
     # Ensure server_id is a string
     server_id_str = str(server_id)
-    
+
     # Add an empty dictionary for the server_id if it doesn't exist
     if server_id_str not in tokens:
         tokens[server_id_str] = {}
@@ -96,7 +113,6 @@ def add_server_id(server_id):
     # Save the updated tokens back to the file
     with open(tokens_file, 'w') as file:
         json.dump(tokens, file, indent=4)
-
 
 def get_config(key, default=None):
     return config.get(key, default)
@@ -143,7 +159,6 @@ def save_alert_channels(alert_channels):
     except IOError as e:
         logging.error(f"Error saving alert channels: {e}")
 
-
 # Function to get the alert channel ID for a specific server
 def get_alert_channel(server_id):
     alert_channels = load_alert_channels()
@@ -161,48 +176,63 @@ async def send_alert_message(bot, server_id, message):
     else:
         print(f"No alert channel set for server ID {server_id}.")
 
-
-def load_server_structures():
-    """Load the server structures from the JSON file."""
+def save_server_structures(server_structures, server_id, corporation_id):
+    """Save the server structures for a specific server and corporation to the JSON file."""
+    filename = f"{server_id}_{corporation_id}_structures.json"
     try:
-        with open(server_structures_file, 'r') as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return {}
-    except json.JSONDecodeError as e:
-        logging.error(f"Error decoding JSON from file: {e}")
-        return {}
-    
-
-def save_server_structures(server_structures, server_id):
-    """Save the server structures to the JSON file."""
-    if not isinstance(server_structures, dict):
-        raise ValueError("server_structures must be a dictionary.")
-
-    try:
-        with open(server_structures_file, 'w') as file:
+        # Open the file in write mode, which will truncate the file to zero length
+        with open(filename, 'w') as file:
             json.dump(server_structures, file, indent=4)
+        logging.info(f"Structures for server {server_id} and corporation {corporation_id} saved to {filename}.")
     except IOError as e:
-        logging.error(f"Error saving server structures to JSON file: {e}")
+        logging.error(f"Error saving structures to file {filename}: {e}")
         raise
 
+def load_server_structures(server_id, corporation_id):
+    """Load the server structures for a specific server and corporation from the JSON file."""
+    filename = f"{server_id}_{corporation_id}_structures.json"
+    try:
+        with open(filename, 'r') as file:
+            server_structures = json.load(file)
+            logging.info(f"Loaded server structures from {filename}: {json.dumps(server_structures, indent=4)}")
+            return server_structures
+    except FileNotFoundError:
+        logging.error(f"Structure file {filename} not found.")
+        return {}
+    except json.JSONDecodeError as e:
+        logging.error(f"Error decoding JSON from file {filename}: {e}")
+        return {}
+
+
+
+def load_all_tokens():
+    """Load all tokens from files."""
+    all_tokens = {}
+    for filename in os.listdir():
+        if filename.endswith("_token.json"):
+            parts = filename.split('_')
+            if len(parts) >= 3:
+                server_id = parts[0]
+                corporation_id = parts[1]
+                token_data = load_token(server_id, corporation_id)
+                if token_data:
+                    if server_id not in all_tokens:
+                        all_tokens[server_id] = {}
+                    all_tokens[server_id][corporation_id] = token_data
+    return all_tokens
+
 def get_all_server_ids():
-    # Try to load server structures first
-    server_structures = load_server_structures()
+    """Retrieve all server IDs."""
+    # Load server structures from the tokens file instead
+    server_ids = set()
+    for filename in os.listdir():
+        if filename.endswith("_token.json"):
+            server_id = filename.split('_')[0]
+            server_ids.add(server_id)
     
-    # Check if server_structures is not empty and contains keys
-    if isinstance(server_structures, dict) and server_structures:
-        return list(server_structures.keys())
-    
-    # If server_structures is empty or not valid, load from tokens file
-    tokens = load_tokens()
-    
-    if isinstance(tokens, dict) and tokens:
-        return list(tokens.keys())
-    
-    # If both are empty, return an empty list
-    return []
+    return list(server_ids)
+
 
 # Load configurations and tokens when the module is imported
 load_config()
-load_tokens()
+initialize_tokens_file()

@@ -6,6 +6,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from config import save_server_structures
 from structurecommands import get_all_structure_assets, get_moon_drills
+from administration import extract_corporation_id_from_filename, fetch_corporation_name
 from moongoo import get_moon_goo_items
 
 logging.basicConfig(level=logging.INFO)
@@ -30,84 +31,88 @@ async def load_moon_goo_from_json():
     except FileNotFoundError:
         return {}
 
+import os
+
 async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
     moon_goo_items = get_moon_goo_items()
     logging.info(f"Loaded moon goo items: {moon_goo_items}")
 
-    # Define the JSON file path
-    structure_info_file = 'server_structures.json'
-
-    # Load structure info from JSON file
-    try:
-        with open(structure_info_file, 'r') as file:
-            server_structures = json.load(file)
-    except FileNotFoundError:
-        server_structures = {}
-        await ctx.send(f"Structure info file not found. Please ensure '{structure_info_file}' is present.")
-        return
-    except json.JSONDecodeError:
-        logging.error(f"Error decoding JSON from file {structure_info_file}.")
-        await ctx.send(f"Error reading '{structure_info_file}'. Please ensure the file is correctly formatted.")
-        return
-
-    # Get the server ID from the context
     server_id = str(ctx.guild.id)
 
-    # Get all moon drill structure IDs from the configuration
-    moon_drill_ids = server_structures.get(server_id, {}).get('metenox_moon_drill_ids', [])
+    # Collect all files for the server (assuming they are stored as {server_id}_{corporation_id}_structures.json)
+    structure_files = [f for f in os.listdir('.') if f.startswith(f"{server_id}_") and f.endswith("_structures.json")]
 
-    if not moon_drill_ids:
-        moon_drill_ids = await get_moon_drills()
-        if moon_drill_ids:
-            # Update server structures with new moon drill IDs
-            if server_id not in server_structures:
-                server_structures[server_id] = {'metenox_moon_drill_ids': moon_drill_ids, 'structure_info': {}}
-            else:
-                server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
-            
-            # Save the updated server structures to JSON
-            save_server_structures(server_structures)
-        else:
-            await ctx.send("No moon drills found or an error occurred.")
-            return
+    if not structure_files:
+        await ctx.send(f"No structure info files found for server {server_id}.")
+        return
 
     moon_drill_assets = defaultdict(lambda: defaultdict(int))
-    
-    async def fetch_and_aggregate_assets(ids):
-        all_assets_info = await get_all_structure_assets(ids, server_id)  # Correct argument order
+
+    async def fetch_and_aggregate_assets(ids, corporation_id, corp_name):
+        all_assets_info = await get_all_structure_assets(ids, server_id)  # Fetch assets for the structure IDs
         if isinstance(all_assets_info, str):
             await ctx.send(all_assets_info)
             return
 
         for structure_id, assets_info in all_assets_info.items():
-            # Filter by structure name if provided
-            structure_name_in_info = server_structures.get(server_id, {}).get('structure_info', {}).get(str(structure_id), 'Unknown Structure')
+            # Get the correct structure name from the JSON or fall back to Unknown Structure
+            structure_name_in_info = server_structures.get('structure_info', {}).get(str(structure_id), f"Unknown Structure (ID: {structure_id})")
+            
+            # If structure_name is provided in the function argument, filter based on that
             if structure_name and structure_name_in_info != structure_name:
                 continue
 
             for asset in assets_info:
                 type_id = asset.get('type_id')
                 quantity = asset.get('quantity', 0)
-                
+
                 if type_id in moon_goo_items:
                     item_name = moon_goo_items[type_id]
-                    moon_drill_assets[structure_id][item_name] += quantity
+                    # Aggregating by corporation name and structure name
+                    moon_drill_assets[f"{corp_name} - {structure_name_in_info}"][item_name] += quantity
 
-    # Fetch all assets in chunks to avoid timeout issues
-    chunk_size = 100  # Adjust this as needed
-    for i in range(0, len(moon_drill_ids), chunk_size):
-        await fetch_and_aggregate_assets(moon_drill_ids[i:i + chunk_size])
+    # Loop through each corporation's structure file
+    for structure_file in structure_files:
+        # Extract corporation ID from the file name (assuming format {server_id}_{corporation_id}_structures.json)
+        corporation_id = structure_file.replace(f"{server_id}_", "").replace("_structures.json", "")
+
+        # Fetch the corporation's name using the ESI API
+        corp_name = await fetch_corporation_name(corporation_id)
+
+        # Load structure info for the corporation
+        try:
+            with open(structure_file, 'r') as file:
+                server_structures = json.load(file)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logging.error(f"Error loading or parsing {structure_file}: {e}")
+            await ctx.send(f"Error reading '{structure_file}'. Please ensure it is correctly formatted.")
+            continue
+
+        # Get all moon drill structure IDs from the configuration
+        moon_drill_ids = server_structures.get('metenox_moon_drill_ids', [])
+
+        if not moon_drill_ids:
+            moon_drill_ids = await get_moon_drills(server_id)
+            if moon_drill_ids:
+                server_structures['metenox_moon_drill_ids'] = moon_drill_ids
+                save_server_structures(server_structures, server_id, corporation_id)
+            else:
+                await ctx.send(f"No moon drills found for corporation {corporation_id} or an error occurred.")
+                continue
+
+        # Fetch all assets for the corporation and aggregate them
+        chunk_size = 100  # Adjust this as needed
+        for i in range(0, len(moon_drill_ids), chunk_size):
+            await fetch_and_aggregate_assets(moon_drill_ids[i:i + chunk_size], corporation_id, corp_name)
 
     if not moon_drill_assets:
         await ctx.send("No moon goo data found.")
         return
 
-    # Prepare response message
+    # Prepare the response message with proper structure names and corporation distinctions
     response_message = ""
-    for structure_id, assets in moon_drill_assets.items():
-        structure_name = server_structures.get(server_id, {}).get('structure_info', {}).get(str(structure_id), 'Unknown Structure')
-        response_message += f"**{structure_name} (ID: {structure_id})**\n"
-        
+    for structure_name, assets in moon_drill_assets.items():
+        response_message += f"**{structure_name}**\n"
         for item_name, total_quantity in assets.items():
             response_message += f"__{item_name}__: ***{total_quantity}***\n"
         response_message += "\n"  # Add a newline for separation
@@ -115,7 +120,7 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
     # Save the aggregated moon drill assets to JSON
     await save_moon_goo_to_json(moon_drill_assets)
 
-    # Send message in chunks if necessary
+    # Send the message in chunks if necessary
     if len(response_message) > 2000:
         chunks = [response_message[i:i + 2000] for i in range(0, len(response_message), 2000)]
         for chunk in chunks:
