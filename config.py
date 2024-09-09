@@ -10,7 +10,6 @@ tokens = {}
 states = {}
 config_file = 'config.yaml'
 tokens_file = 'tokens.json'
-server_structures_file = 'server_structures.json'
 alert_channel_file = 'alert_channels.json'
 
 def load_config():
@@ -177,35 +176,32 @@ async def send_alert_message(bot, server_id, message):
     else:
         print(f"No alert channel set for server ID {server_id}.")
 
-def load_server_structures():
-    """Load the server structures from the JSON file."""
+def save_server_structures(server_structures, server_id, corporation_id):
+    """Save the server structures for a specific server and corporation to the JSON file."""
+    filename = f"{server_id}_{corporation_id}_structures.json"
     try:
-        with open(server_structures_file, 'r') as file:
-            return json.load(file)
+        # Open the file in write mode, which will truncate the file to zero length
+        with open(filename, 'w') as file:
+            json.dump(server_structures, file, indent=4)
+        logging.info(f"Structures for server {server_id} and corporation {corporation_id} saved to {filename}.")
+    except IOError as e:
+        logging.error(f"Error saving structures to file {filename}: {e}")
+        raise
+
+def load_server_structures(server_id, corporation_id):
+    """Load the server structures for a specific server and corporation from the JSON file."""
+    filename = f"{server_id}_{corporation_id}_structures.json"
+    try:
+        with open(filename, 'r') as file:
+            server_structures = json.load(file)
+            logging.info(f"Loaded server structures from {filename}: {json.dumps(server_structures, indent=4)}")
+            return server_structures
     except FileNotFoundError:
+        logging.error(f"Structure file {filename} not found.")
         return {}
     except json.JSONDecodeError as e:
-        logging.error(f"Error decoding JSON from file: {e}")
+        logging.error(f"Error decoding JSON from file {filename}: {e}")
         return {}
-
-def save_server_structures(server_structures, server_id):
-    """Save the server structures to the JSON file."""
-    if not isinstance(server_structures, dict):
-        raise ValueError("server_structures must be a dictionary.")
-
-    try:
-        # Load existing data
-        existing_structures = load_server_structures()
-
-        # Update the existing data with the new structures for the specific server_id
-        existing_structures[server_id] = server_structures.get(server_id, {})
-
-        # Save the updated data
-        with open(server_structures_file, 'w') as file:
-            json.dump(existing_structures, file, indent=4)
-    except IOError as e:
-        logging.error(f"Error saving server structures to JSON file: {e}")
-        raise
 
 
 
@@ -227,21 +223,15 @@ def load_all_tokens():
 
 def get_all_server_ids():
     """Retrieve all server IDs."""
-    # Try to load server structures first
-    server_structures = load_server_structures()
-    
-    # Check if server_structures is not empty and contains keys
-    if isinstance(server_structures, dict) and server_structures:
-        return list(server_structures.keys())
-    
-    # If server_structures is empty or not valid, load from tokens file
-    tokens = {}
+    # Load server structures from the tokens file instead
+    server_ids = set()
     for filename in os.listdir():
         if filename.endswith("_token.json"):
             server_id = filename.split('_')[0]
-            tokens[server_id] = None
+            server_ids.add(server_id)
     
-    return list(tokens.keys())
+    return list(server_ids)
+
 
 # Load configurations and tokens when the module is imported
 load_config()

@@ -4,76 +4,68 @@ import config
 import aiohttp
 import asyncio
 from administration import get_access_token, extract_corporation_id_from_filename
-from config import save_server_structures, load_server_structures, get_config
+from config import save_server_structures, load_server_structures
 
 
 
-def add_or_update_server(server_id, moon_drill_ids, structure_info):
-    # Load existing server structures
-    server_structures = load_server_structures()
+def add_or_update_server(server_id, corporation_id, structure_info):
+    # Define the filename based on the server and corporation ID
+    filename = f"{server_id}_{corporation_id}_structures.json"
     
-    # Update the entry for the given server ID
-    server_structures[server_id] = {
-        'metenox_moon_drill_ids': moon_drill_ids,
+    # Structure the data to only include 'structure_info'
+    server_structures = {
         'structure_info': structure_info
     }
-    
-    # Save the updated structures
-    save_server_structures(server_structures, server_id)
 
+    # Save the updated structure data
+    try:
+        with open(filename, 'w') as file:
+            json.dump(server_structures, file, indent=4)
+        logging.info(f"Structures for server {server_id} and corporation {corporation_id} saved to {filename}.")
+    except Exception as e:
+        logging.error(f"Error saving structures to file {filename}: {str(e)}")
 
 async def update_structure_info(server_id, moon_drill_ids):
     corporation_id = extract_corporation_id_from_filename(server_id)
+    if not corporation_id:
+        logging.error(f"Failed to extract corporation ID for server {server_id}.")
+        return
+
     access_token = get_access_token(server_id, corporation_id)
     if not access_token:
         logging.error(f"Failed to get access token for server {server_id}.")
         return
 
     headers = {'Authorization': f'Bearer {access_token}'}
-    structure_info = {}
+    structure_info = load_server_structures(server_id, corporation_id)  # Load existing structures
 
     async with aiohttp.ClientSession() as session:
         for structure_id in moon_drill_ids:
-            url = f'https://esi.evetech.net/latest/universe/structures/{structure_id}/'
+            if str(structure_id) not in structure_info:  # Avoid re-fetching existing structure names
+                url = f'https://esi.evetech.net/latest/universe/structures/{structure_id}/'
 
-            try:
-                async with session.get(url, headers=headers) as response:
-                    if response.status == 200:
-                        data = await response.json()
+                try:
+                    async with session.get(url, headers=headers) as response:
+                        if response.status == 200:
+                            data = await response.json()
 
-                        # Debugging log: Show the full response
-                        logging.debug(f"Structure ID {structure_id} response data: {data}")
-
-                        if 'name' in data:
-                            structure_name = data['name']
-                            structure_info[str(structure_id)] = structure_name
-                            logging.info(f"Fetched structure name for ID {structure_id}: {structure_name}")
+                            if 'name' in data:
+                                structure_name = data['name']
+                                structure_info[str(structure_id)] = structure_name
+                                logging.info(f"Fetched structure name for ID {structure_id}: {structure_name}")
+                            else:
+                                structure_info[str(structure_id)] = 'Unknown Structure'
+                                logging.error(f"Unexpected response format for structure ID {structure_id}: {data}")
                         else:
-                            logging.error(f"Unexpected response format for server {server_id}, ID {structure_id}: {data}")
                             structure_info[str(structure_id)] = 'Unknown Structure'
-                    else:
-                        logging.error(f"Failed to fetch data for structure ID {structure_id}: HTTP {response.status}")
-                        structure_info[str(structure_id)] = 'Unknown Structure'
-            except aiohttp.ClientError as e:
-                logging.error(f"Request error for server {server_id}, ID {structure_id}: {e}")
-                structure_info[str(structure_id)] = 'Unknown Structure'
+                            logging.error(f"Failed to fetch structure data for ID {structure_id}: HTTP {response.status}")
+                except aiohttp.ClientError as e:
+                    structure_info[str(structure_id)] = 'Unknown Structure'
+                    logging.error(f"Request error for structure ID {structure_id}: {e}")
 
-    # Load and update server structures
-    server_structures = load_server_structures()
-
-    if server_id not in server_structures:
-        server_structures[server_id] = {}
-
-    server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
-    server_structures[server_id]['structure_info'] = structure_info
-
-    try:
-        save_server_structures(server_structures, server_id)
-        logging.info(f"Saved structure info for server {server_id}: {structure_info} to JSON file")
-    except Exception as e:
-        logging.error(f"Error saving structure info to JSON file: {e}")
-
-
+    # Update structure information in the file
+    save_server_structures({'structure_info': structure_info, 'metenox_moon_drill_ids': moon_drill_ids}, server_id, corporation_id)
+    logging.info(f"Saved updated structure info for server {server_id} and corporation {corporation_id}")
 
     
 async def get_all_structure_assets(structure_ids, server_id):
@@ -240,17 +232,17 @@ async def get_structure_name(server_id, structure_id):
             return 'Unknown Structure'
 
       
-def load_moon_drill_ids(server_id):
-    """Load moon drill IDs for a specific server from the JSON file."""
-    try:
-        with open('server_structures.json', 'r') as file:
-            server_structures = json.load(file)
-        
-        return server_structures.get(server_id, {}).get('metenox_moon_drill_ids', [])
-    
-    except FileNotFoundError:
-        logging.error("server_structures.json file not found.")
-        return []
-    except json.JSONDecodeError:
-        logging.error("Error decoding JSON from server_structures.json.")
-        return []
+#def load_moon_drill_ids(server_id):
+#    """Load moon drill IDs for a specific server from the JSON file."""
+#    try:
+#        with open('server_structures.json', 'r') as file:
+#            server_structures = json.load(file)
+#        
+#        return server_structures.get(server_id, {}).get('metenox_moon_drill_ids', [])
+#    
+#    except FileNotFoundError:
+#        logging.error("server_structures.json file not found.")
+#        return []
+#    except json.JSONDecodeError:
+#        logging.error("Error decoding JSON from server_structures.json.")
+#        return []

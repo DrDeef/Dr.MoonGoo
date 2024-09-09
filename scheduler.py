@@ -200,9 +200,17 @@ async def get_all_structure_assets(structure_ids, server_id):
     return all_assets
 
 # Function to load server structures
-def load_server_structures():
-    server_structures_file = 'server_structures.json'
-    if os.path.exists(server_structures_file):
-        with open(server_structures_file, 'r') as file:
-            return json.load(file)
-    return {}
+def load_server_structures(server_id, corporation_id):
+    """Load the server structures for a specific server and corporation from the JSON file."""
+    filename = f"{server_id}_{corporation_id}_structures.json"
+    try:
+        with open(filename, 'r') as file:
+            server_structures = json.load(file)
+            logging.info(f"Loaded server structures from {filename}: {json.dumps(server_structures, indent=4)}")
+            return server_structures
+    except FileNotFoundError:
+        logging.error(f"Structure file {filename} not found.")
+        return {}
+    except json.JSONDecodeError as e:
+        logging.error(f"Error decoding JSON from file {filename}: {e}")
+        return {}

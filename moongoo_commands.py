@@ -35,7 +35,7 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
     logging.info(f"Loaded moon goo items: {moon_goo_items}")
 
     # Define the JSON file path
-    structure_info_file = 'server_structures.json'
+    structure_info_file = f"{server_id}_{corporation_id}_structures.json"
 
     # Load structure info from JSON file
     try:

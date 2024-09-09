@@ -8,6 +8,7 @@ import os
 from moongoo_commands import handle_fetch_moon_goo_assets
 from config import load_token, save_server_structures, load_server_structures
 from datetime import datetime, timedelta
+from administration import extract_corporation_id_from_filename
 from collections import defaultdict
 from structurecommands import get_all_structure_assets, get_moon_drills, update_structure_info
 
@@ -109,13 +110,29 @@ async def handle_showadmin(message):
 
 async def handle_update_moondrills(ctx):
     server_id = str(ctx.guild.id)  # Get server_id from the context
-    await ctx.send("Updating moon drills... Please wait.... \n \n")
+    await ctx.send("Updating moon drills... Please wait....\n\n")
+
 
     # Fetch the new moon drill IDs
     moon_drill_ids = await get_moon_drills(server_id)
 
-    # Load existing server structures
-    server_structures = load_server_structures()
+    # Determine the corporation_id dynamically
+    corporation_id = extract_corporation_id_from_filename(server_id)
+    if not corporation_id:
+        await ctx.send("Could not determine the corporation ID. Please contact support.")
+        return
+
+
+    # Backup and delete existing file if it exists
+    filename = f"{server_id}_{corporation_id}_structures.json"
+    if os.path.exists(filename):
+        os.remove(filename)
+        logging.info(f"Deleted existing file {filename} before saving the updated structures.")
+
+
+
+    # Load existing server structures for the specific server and corporation
+    server_structures = load_server_structures(server_id, corporation_id)
 
     # Ensure server_structures is a dictionary
     if not isinstance(server_structures, dict):
@@ -123,20 +140,14 @@ async def handle_update_moondrills(ctx):
         await ctx.send("An internal error occurred. Please try again later.")
         return
 
-    # Prepare the data to be saved
-    if server_id not in server_structures:
-        server_structures[server_id] = {'metenox_moon_drill_ids': [], 'structure_info': {}}
+    # Initialize missing keys
+    if 'metenox_moon_drill_ids' not in server_structures:
+        server_structures['metenox_moon_drill_ids'] = []
+    if 'structure_info' not in server_structures:
+        server_structures['structure_info'] = {}
 
     # Update the server's moon drill IDs
-    server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
-
-    # Save the updated server structures to JSON
-    try:
-        save_server_structures(server_structures, server_id)
-    except ValueError as ve:
-        logging.error(f"Error in save_server_structures: {ve}")
-        await ctx.send("Failed to save server structures. Please try again later.")
-        return
+    server_structures['metenox_moon_drill_ids'] = moon_drill_ids
 
     # Fetch and update structure information
     try:
@@ -146,28 +157,39 @@ async def handle_update_moondrills(ctx):
         await ctx.send("Failed to update structure information. Please try again later.")
         return
 
-    # Reload the updated structure info
-    server_structures = load_server_structures()
-    structure_info = server_structures.get(server_id, {}).get('structure_info', {})
+    # Reload the updated structure info from the saved file
+    server_structures = load_server_structures(server_id, corporation_id)
+    structure_info = server_structures.get('structure_info', {})
+
+    # Debug step: Print the loaded structure_info to check if it matches the expected JSON format
+    logging.info(f"Loaded structure_info: {json.dumps(structure_info, indent=4)}")
 
     # Prepare the response with structure names and IDs
     response_message = "Metenox Moondrills successfully updated.\n"
+    
     for moon_drill_id in moon_drill_ids:
+        # Convert the moon_drill_id to a string to match the JSON keys
         structure_name = structure_info.get(str(moon_drill_id), 'Unknown structure')
         response_message += f"{moon_drill_id} - {structure_name}\n"
 
     await ctx.send(response_message)
 
+
+    # Save the updated server structures to JSON
+    try:
+        save_server_structures(server_structures, server_id, corporation_id)
+    except ValueError as ve:
+        logging.error(f"Error in save_server_structures: {ve}")
+        await ctx.send("Failed to save server structures. Please try again later.")
+        
     # If no moon drill IDs were found, update the server structures accordingly
     if not moon_drill_ids:
-        if server_id not in server_structures:
-            server_structures[server_id] = {'metenox_moon_drill_ids': [], 'structure_info': {}}
-        else:
-            server_structures[server_id]['metenox_moon_drill_ids'] = []
+        if 'metenox_moon_drill_ids' not in server_structures:
+            server_structures['metenox_moon_drill_ids'] = []
 
         # Save the updated server structures to JSON
         try:
-            save_server_structures(server_structures, server_id)
+            save_server_structures(server_structures, server_id, corporation_id)
         except ValueError as ve:
             logging.error(f"Error in save_server_structures: {ve}")
             await ctx.send("Failed to save server structures. Please try again later.")
@@ -175,33 +197,43 @@ async def handle_update_moondrills(ctx):
         await ctx.send("No moon drills found or an error occurred.")
 
 
-
 async def handle_checkgas(ctx):
     server_id = str(ctx.guild.id)  # Get the server ID from the context
 
+    # Debug: Log the server ID
+    logging.info(f"Server ID from context: {server_id}")
+
+    # Get the corporation ID dynamically from the filename
+    corporation_id = extract_corporation_id_from_filename(server_id)
+    if not corporation_id:
+        await ctx.send("Corporation ID could not be determined.")
+        return
+
     # Load server structures from JSON file
-    server_structures = load_server_structures()
+    server_structures = load_server_structures(server_id, corporation_id)
 
-    # Check if server_id exists in server_structures
-    if server_id not in server_structures:
-        await ctx.send("Server ID not found in the data.")
+    # Debug: Log the loaded data
+    logging.info(f"Loaded server structures for server_id {server_id} and corporation_id {corporation_id}: {json.dumps(server_structures, indent=4)}")
+
+    # Check if the expected keys exist in server_structures
+    if 'structure_info' not in server_structures or 'metenox_moon_drill_ids' not in server_structures:
+        logging.error(f"Keys 'structure_info' and 'metenox_moon_drill_ids' not found in data: {list(server_structures.keys())}")
+        await ctx.send("Expected data format not found.")
         return
 
-    # Check if the server_data contains the expected nested structure
-    server_data = server_structures.get(server_id, {})
-    if not isinstance(server_data, dict):
-        await ctx.send("Server data is not in the expected format.")
-        return
+    # Access the structure info and moon drill IDs directly
+    structure_info = server_structures['structure_info']
+    moon_drill_ids = server_structures['metenox_moon_drill_ids']
 
-    # Access the structure info and moon drill IDs from the correct level
-    structure_info = server_data.get('structure_info', {})
-    moon_drill_ids = server_data.get('metenox_moon_drill_ids', [])
+    # Debug: Print structure_info and moon_drill_ids
+    logging.info(f"Structure Info: {json.dumps(structure_info, indent=4)}")
+    logging.info(f"Moon Drill IDs: {moon_drill_ids}")
 
-    # Update moon drills and structure info if the list is empty
+    # If moon_drill_ids is empty, update moon drills
     if not moon_drill_ids:
         moon_drill_ids = await get_moon_drills(server_id)
         if moon_drill_ids:
-            server_structures[server_id]['metenox_moon_drill_ids'] = moon_drill_ids
+            server_structures['metenox_moon_drill_ids'] = moon_drill_ids
             # Save structure info in the JSON file
             await update_structure_info(server_id, moon_drill_ids)
             save_server_structures(server_structures)
@@ -273,89 +305,77 @@ async def handle_checkgas(ctx):
         await ctx.send(gas_info)
 
 
+#async def handle_structureassets(ctx):
+#    # Define the JSON file path
+#    server_structures_file = 'server_structures.json'
+#
+#    # Load structure info from JSON file
+#    try:
+#        with open(server_structures_file, 'r') as file:
+#            server_structures = json.load(file)
+#    except FileNotFoundError:
+#        logging.error(f"File {server_structures_file} not found.")
+#        await ctx.send(f"Server structures file not found. Please ensure '{server_structures_file}' is present.")
+#        return
+#    except json.JSONDecodeError:
+#        logging.error(f"Error decoding JSON from file {server_structures_file}.")
+#        await ctx.send(f"Error reading '{server_structures_file}'. Please ensure the file is correctly formatted.")
+#        return
+#
+#    # Get the server ID from the context
+#    server_id = str(ctx.guild.id)
+#    
+#    # Check if the server ID is in the loaded data
+#    if server_id not in server_structures:
+#        await ctx.send(f"No data found for server ID {server_id}.")
+#        return
+#    
+#    # Access moon drill structure IDs from the server structures
+#    moon_drill_ids = server_structures[server_id].get('metenox_moon_drill_ids', [])
+#    
+#    if not moon_drill_ids:
+#        await ctx.send("No moon drill IDs found for the server.")
+#        return
+#
+#    # Fetch assets information for all moon drills
+#    all_assets_info = await get_all_structure_assets(moon_drill_ids, server_id)
+#
+#    if isinstance(all_assets_info, str):
+#        await ctx.send(all_assets_info)
+#        return
+#
+#    if not all_assets_info:
+#        await ctx.send("No assets found for the provided structure IDs.")
+#        return
+#
+#    response = ""
+#    for structure_id, assets_info in all_assets_info.items():
+#        # Get structure name from server structures
+#        structure_name = server_structures[server_id]['structure_info'].get(str(structure_id), 'Unknown Structure')
+#
+#        # Prepare to aggregate asset quantities
+#        asset_totals = {name: 0 for name in moongoo.get_moon_goo_items().values()}
+#
+#        for asset in assets_info:
+#            type_id = asset.get('type_id')
+#            quantity = asset.get('quantity', 0)
+#            asset_name = moongoo.get_moon_goo_items().get(type_id, 'Unknown Item')
+#            asset_totals[asset_name] += quantity
+#
+#        # Build the response string
+#        response += f"**{structure_name}** (ID: {structure_id})\n"  # Structure Name and ID
+#        for asset_name, total_quantity in asset_totals.items():
+#            response += f"{asset_name}: ***{total_quantity}***\n"
+#        response += "\n"  # Add a newline for separation
+#
+#    # Send message in chunks if necessary
+#    if len(response) > 2000:
+#        chunks = [response[i:i + 2000] for i in range(0, len(response), 2000)]
+#        for chunk in chunks:
+#            await ctx.send(chunk)
+#    else:
+#        await ctx.send(response)
 
-
-async def handle_structureassets(ctx):
-    # Define the JSON file path
-    server_structures_file = 'server_structures.json'
-
-    # Load structure info from JSON file
-    try:
-        with open(server_structures_file, 'r') as file:
-            server_structures = json.load(file)
-    except FileNotFoundError:
-        logging.error(f"File {server_structures_file} not found.")
-        await ctx.send(f"Server structures file not found. Please ensure '{server_structures_file}' is present.")
-        return
-    except json.JSONDecodeError:
-        logging.error(f"Error decoding JSON from file {server_structures_file}.")
-        await ctx.send(f"Error reading '{server_structures_file}'. Please ensure the file is correctly formatted.")
-        return
-
-    # Get the server ID from the context
-    server_id = str(ctx.guild.id)
-    
-    # Check if the server ID is in the loaded data
-    if server_id not in server_structures:
-        await ctx.send(f"No data found for server ID {server_id}.")
-        return
-    
-    # Access moon drill structure IDs from the server structures
-    moon_drill_ids = server_structures[server_id].get('metenox_moon_drill_ids', [])
-    
-    if not moon_drill_ids:
-        await ctx.send("No moon drill IDs found for the server.")
-        return
-
-    # Fetch assets information for all moon drills
-    all_assets_info = await get_all_structure_assets(moon_drill_ids, server_id)
-
-    if isinstance(all_assets_info, str):
-        await ctx.send(all_assets_info)
-        return
-
-    if not all_assets_info:
-        await ctx.send("No assets found for the provided structure IDs.")
-        return
-
-    response = ""
-    for structure_id, assets_info in all_assets_info.items():
-        # Get structure name from server structures
-        structure_name = server_structures[server_id]['structure_info'].get(str(structure_id), 'Unknown Structure')
-
-        # Prepare to aggregate asset quantities
-        asset_totals = {name: 0 for name in moongoo.get_moon_goo_items().values()}
-
-        for asset in assets_info:
-            type_id = asset.get('type_id')
-            quantity = asset.get('quantity', 0)
-            asset_name = moongoo.get_moon_goo_items().get(type_id, 'Unknown Item')
-            asset_totals[asset_name] += quantity
-
-        # Build the response string
-        response += f"**{structure_name}** (ID: {structure_id})\n"  # Structure Name and ID
-        for asset_name, total_quantity in asset_totals.items():
-            response += f"{asset_name}: ***{total_quantity}***\n"
-        response += "\n"  # Add a newline for separation
-
-    # Send message in chunks if necessary
-    if len(response) > 2000:
-        chunks = [response[i:i + 2000] for i in range(0, len(response), 2000)]
-        for chunk in chunks:
-            await ctx.send(chunk)
-    else:
-        await ctx.send(response)
-
-
-
-async def handle_debug(message):
-    token_data = ()  # This needs to be a function in your code
-
-    access_token = token_data.get('access_token', 'No access token found')
-    refresh_token = token_data.get('refresh_token', 'No refresh token found')
-
-    await message.channel.send("Debug information: ...")
-    await message.channel.send(f'Access Token: {access_token}\nRefresh Token: {refresh_token}')
 
 async def handle_help(message):
     await message.channel.send(
