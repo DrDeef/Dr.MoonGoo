@@ -185,6 +185,18 @@ def get_corporation_id(character_id, access_token):
         logging.error(f"Error retrieving corporation ID: {e}")
         return None
 
+async def fetch_corporation_name(corporation_id):
+    """Fetch the corporation name from EVE ESI API."""
+    url = f"https://esi.evetech.net/latest/corporations/{corporation_id}/"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data.get('name', f"Corporation {corporation_id}")
+            else:
+                logging.error(f"Failed to fetch corporation name for ID {corporation_id}. Status code: {response.status}")
+                return f"Corporation {corporation_id}"
+            
 def get_latest_token(server_id):
     tokens = load_token(server_id, None)  # Assuming `None` if corporation_id is not used
 

@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from config import save_server_structures
 from structurecommands import get_all_structure_assets, get_moon_drills
-from administration import extract_corporation_id_from_filename
+from administration import extract_corporation_id_from_filename, fetch_corporation_name
 from moongoo import get_moon_goo_items
 
 logging.basicConfig(level=logging.INFO)
@@ -31,50 +31,24 @@ async def load_moon_goo_from_json():
     except FileNotFoundError:
         return {}
 
+import os
+
 async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
     moon_goo_items = get_moon_goo_items()
     logging.info(f"Loaded moon goo items: {moon_goo_items}")
 
     server_id = str(ctx.guild.id)
 
-    # Get the corporation ID dynamically from the filename
-    corporation_id = extract_corporation_id_from_filename(server_id)
-    if not corporation_id:
-        await ctx.send("Corporation ID could not be determined.")
+    # Collect all files for the server (assuming they are stored as {server_id}_{corporation_id}_structures.json)
+    structure_files = [f for f in os.listdir('.') if f.startswith(f"{server_id}_") and f.endswith("_structures.json")]
+
+    if not structure_files:
+        await ctx.send(f"No structure info files found for server {server_id}.")
         return
-
-    # Define the JSON file path
-    structure_info_file = f"{server_id}_{corporation_id}_structures.json"
-
-    # Load structure info from JSON file
-    try:
-        with open(structure_info_file, 'r') as file:
-            server_structures = json.load(file)
-    except FileNotFoundError:
-        server_structures = {}
-        await ctx.send(f"Structure info file not found. Please ensure '{structure_info_file}' is present.")
-        return
-    except json.JSONDecodeError:
-        logging.error(f"Error decoding JSON from file {structure_info_file}.")
-        await ctx.send(f"Error reading '{structure_info_file}'. Please ensure the file is correctly formatted.")
-        return
-
-    # Get all moon drill structure IDs from the configuration
-    moon_drill_ids = server_structures.get('metenox_moon_drill_ids', [])
-
-    if not moon_drill_ids:
-        moon_drill_ids = await get_moon_drills(server_id)
-        if moon_drill_ids:
-            # Update server structures with new moon drill IDs
-            server_structures['metenox_moon_drill_ids'] = moon_drill_ids
-            save_server_structures(server_structures, server_id, corporation_id)
-        else:
-            await ctx.send("No moon drills found or an error occurred.")
-            return
 
     moon_drill_assets = defaultdict(lambda: defaultdict(int))
 
-    async def fetch_and_aggregate_assets(ids):
+    async def fetch_and_aggregate_assets(ids, corporation_id, corp_name):
         all_assets_info = await get_all_structure_assets(ids, server_id)  # Fetch assets for the structure IDs
         if isinstance(all_assets_info, str):
             await ctx.send(all_assets_info)
@@ -94,18 +68,48 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
 
                 if type_id in moon_goo_items:
                     item_name = moon_goo_items[type_id]
-                    moon_drill_assets[structure_name_in_info][item_name] += quantity
+                    # Aggregating by corporation name and structure name
+                    moon_drill_assets[f"{corp_name} - {structure_name_in_info}"][item_name] += quantity
 
-    # Fetch all assets in chunks to avoid timeout issues
-    chunk_size = 100  # Adjust this as needed
-    for i in range(0, len(moon_drill_ids), chunk_size):
-        await fetch_and_aggregate_assets(moon_drill_ids[i:i + chunk_size])
+    # Loop through each corporation's structure file
+    for structure_file in structure_files:
+        # Extract corporation ID from the file name (assuming format {server_id}_{corporation_id}_structures.json)
+        corporation_id = structure_file.replace(f"{server_id}_", "").replace("_structures.json", "")
+
+        # Fetch the corporation's name using the ESI API
+        corp_name = await fetch_corporation_name(corporation_id)
+
+        # Load structure info for the corporation
+        try:
+            with open(structure_file, 'r') as file:
+                server_structures = json.load(file)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logging.error(f"Error loading or parsing {structure_file}: {e}")
+            await ctx.send(f"Error reading '{structure_file}'. Please ensure it is correctly formatted.")
+            continue
+
+        # Get all moon drill structure IDs from the configuration
+        moon_drill_ids = server_structures.get('metenox_moon_drill_ids', [])
+
+        if not moon_drill_ids:
+            moon_drill_ids = await get_moon_drills(server_id)
+            if moon_drill_ids:
+                server_structures['metenox_moon_drill_ids'] = moon_drill_ids
+                save_server_structures(server_structures, server_id, corporation_id)
+            else:
+                await ctx.send(f"No moon drills found for corporation {corporation_id} or an error occurred.")
+                continue
+
+        # Fetch all assets for the corporation and aggregate them
+        chunk_size = 100  # Adjust this as needed
+        for i in range(0, len(moon_drill_ids), chunk_size):
+            await fetch_and_aggregate_assets(moon_drill_ids[i:i + chunk_size], corporation_id, corp_name)
 
     if not moon_drill_assets:
         await ctx.send("No moon goo data found.")
         return
 
-    # Prepare the response message with proper structure names
+    # Prepare the response message with proper structure names and corporation distinctions
     response_message = ""
     for structure_name, assets in moon_drill_assets.items():
         response_message += f"**{structure_name}**\n"
@@ -123,7 +127,6 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
             await ctx.send(chunk)
     else:
         await ctx.send(response_message)
-
 
 async def update_moon_goo_items_in_json():
     moon_goo_items = get_moon_goo_items()
