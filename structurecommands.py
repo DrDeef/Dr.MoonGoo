@@ -91,7 +91,7 @@ async def get_all_structure_assets(structure_ids, server_id):
             logging.error(f"Exception occurred during request: {str(e)}")
             return f"Exception occurred during request: {e}"
         except asyncio.TimeoutError:
-            logging.error("Request timed out")
+            logging.error("get_all_structure_assets: Request timed out")
             return "Request timed out"
     
     if isinstance(data, list):
@@ -123,7 +123,7 @@ async def get_moon_drills(server_id):
     headers = {'Authorization': f'Bearer {access_token}'}
     url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/structures/?datasource=tranquility'
 
-    logging.info(f"Fetching moon drills for server {server_id} from URL: {url} with headers: {headers}")
+    logging.debug(f"Fetching moon drills for server {server_id} from URL: {url} with headers: {headers}")
 
     async with aiohttp.ClientSession() as session:
         for attempt in range(3):

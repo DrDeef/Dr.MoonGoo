@@ -11,6 +11,9 @@ states = {}
 config_file = 'config.yaml'
 tokens_file = 'tokens.json'
 alert_channel_file = 'alert_channels.json'
+USE_MONGODB = True
+MONGO_URI = "your_mongodb_connection_uri"
+MONGO_DB_NAME = "your_database_name"
 
 def load_config():
     global config
@@ -48,7 +51,7 @@ def load_token(server_id, corporation_id):
     try:
         with open(filename, 'r') as file:
             token_data = json.load(file)
-        logging.info(f"Token for server {server_id} and corporation {corporation_id} loaded from {filename}.")
+        logging.debug(f"Token for server {server_id} and corporation {corporation_id} loaded from {filename}.")
         return token_data
     except Exception as e:
         logging.error(f"Error loading token from file {filename}: {str(e)}")
@@ -58,7 +61,7 @@ def initialize_tokens_file():
     if not os.path.exists(tokens_file) or os.path.getsize(tokens_file) == 0:
         with open(tokens_file, 'w') as file:
             json.dump({}, file, indent=4)
-        logging.info("Initialized empty tokens.json file.")
+        logging.debug("Initialized empty tokens.json file.")
 
 def save_token(server_id, corporation_id, access_token, refresh_token, expires_in, created_at, character_id):
     """Save the token for a specific server and corporation to a file."""
@@ -75,7 +78,7 @@ def save_token(server_id, corporation_id, access_token, refresh_token, expires_i
     try:
         with open(filename, 'w') as file:
             json.dump(token_data, file, indent=4)
-        logging.info(f"Token for server {server_id} and corporation {corporation_id} saved to {filename}.")
+        logging.debug(f"Token for server {server_id} and corporation {corporation_id} saved to {filename}.")
     except Exception as e:
         logging.error(f"Error saving token to file {filename}: {str(e)}")
 
@@ -183,7 +186,7 @@ def save_server_structures(server_structures, server_id, corporation_id):
         # Open the file in write mode, which will truncate the file to zero length
         with open(filename, 'w') as file:
             json.dump(server_structures, file, indent=4)
-        logging.info(f"Structures for server {server_id} and corporation {corporation_id} saved to {filename}.")
+        logging.debug(f"Structures for server {server_id} and corporation {corporation_id} saved to {filename}.")
     except IOError as e:
         logging.error(f"Error saving structures to file {filename}: {e}")
         raise
