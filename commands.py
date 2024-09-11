@@ -4,13 +4,17 @@ import json
 import uuid
 import config
 import moongoo
+import pandas as pd
 import os
 from moongoo_commands import handle_fetch_moon_goo_assets
-from config import load_token, save_server_structures, load_server_structures
+from config import save_results_to_file, save_server_structures, load_server_structures
 from datetime import datetime, timedelta
 from administration import extract_corporation_id_from_filename
 from collections import defaultdict
 from structurecommands import get_all_structure_assets, get_moon_drills, update_structure_info
+from mongodatabase import collect_moon_goo_data_and_save
+from moongoo_commands import save_moon_goo_to_json, load_moon_goo_from_json, load_moon_goo_data
+from market_calculation import fetch_market_stats_for_items, load_market_stats
 
 logging.basicConfig(level=logging.INFO)
 
@@ -305,76 +309,65 @@ async def handle_checkgas(ctx):
         await ctx.send(gas_info)
 
 
-#async def handle_structureassets(ctx):
-#    # Define the JSON file path
-#    server_structures_file = 'server_structures.json'
-#
-#    # Load structure info from JSON file
-#    try:
-#        with open(server_structures_file, 'r') as file:
-#            server_structures = json.load(file)
-#    except FileNotFoundError:
-#        logging.error(f"File {server_structures_file} not found.")
-#        await ctx.send(f"Server structures file not found. Please ensure '{server_structures_file}' is present.")
-#        return
-#    except json.JSONDecodeError:
-#        logging.error(f"Error decoding JSON from file {server_structures_file}.")
-#        await ctx.send(f"Error reading '{server_structures_file}'. Please ensure the file is correctly formatted.")
-#        return
-#
-#    # Get the server ID from the context
-#    server_id = str(ctx.guild.id)
-#    
-#    # Check if the server ID is in the loaded data
-#    if server_id not in server_structures:
-#        await ctx.send(f"No data found for server ID {server_id}.")
-#        return
-#    
-#    # Access moon drill structure IDs from the server structures
-#    moon_drill_ids = server_structures[server_id].get('metenox_moon_drill_ids', [])
-#    
-#    if not moon_drill_ids:
-#        await ctx.send("No moon drill IDs found for the server.")
-#        return
-#
-#    # Fetch assets information for all moon drills
-#    all_assets_info = await get_all_structure_assets(moon_drill_ids, server_id)
-#
-#    if isinstance(all_assets_info, str):
-#        await ctx.send(all_assets_info)
-#        return
-#
-#    if not all_assets_info:
-#        await ctx.send("No assets found for the provided structure IDs.")
-#        return
-#
-#    response = ""
-#    for structure_id, assets_info in all_assets_info.items():
-#        # Get structure name from server structures
-#        structure_name = server_structures[server_id]['structure_info'].get(str(structure_id), 'Unknown Structure')
-#
-#        # Prepare to aggregate asset quantities
-#        asset_totals = {name: 0 for name in moongoo.get_moon_goo_items().values()}
-#
-#        for asset in assets_info:
-#            type_id = asset.get('type_id')
-#            quantity = asset.get('quantity', 0)
-#            asset_name = moongoo.get_moon_goo_items().get(type_id, 'Unknown Item')
-#            asset_totals[asset_name] += quantity
-#
-#        # Build the response string
-#        response += f"**{structure_name}** (ID: {structure_id})\n"  # Structure Name and ID
-#        for asset_name, total_quantity in asset_totals.items():
-#            response += f"{asset_name}: ***{total_quantity}***\n"
-#        response += "\n"  # Add a newline for separation
-#
-#    # Send message in chunks if necessary
-#    if len(response) > 2000:
-#        chunks = [response[i:i + 2000] for i in range(0, len(response), 2000)]
-#        for chunk in chunks:
-#            await ctx.send(chunk)
-#    else:
-#        await ctx.send(response)
+async def handle_mongo_pricing(ctx):
+    server_id = str(ctx.guild.id)
+    try:
+        # Collect moon goo data and save to MongoDB (if configured)
+        await collect_moon_goo_data_and_save(server_id)
+
+        # Load moon goo and market stats data
+        moon_goo_data = load_moon_goo_data()
+        market_stats = load_market_stats()
+
+        # DataFrame for better formatting
+        columns = ['Station', 'Item Name', 'Amount', 'Buy Price (Per Item)', 'Total Buy Price', 'Sell Price (Per Item)', 'Total Sell Price']
+        df = pd.DataFrame(columns=columns)
+
+        # Log the loaded data for debugging
+        logging.info(f"Loaded moon goo data: {moon_goo_data}")
+        logging.info(f"Loaded market stats: {market_stats}")
+
+        # Loop through stations and calculate prices
+        for station, items in moon_goo_data.items():
+            for item in items:
+                item_name = item['name']
+                amount = item['amount']
+                item_id = item['item_id']
+
+                # Get market stats for the item
+                if str(item_id) in market_stats:
+                    buy_price = market_stats[str(item_id)]['buyAvgFivePercent']
+                    sell_price = market_stats[str(item_id)]['sellAvgFivePercent']
+                else:
+                    buy_price = 0
+                    sell_price = 0
+
+                total_buy_price = buy_price * amount
+                total_sell_price = sell_price * amount
+
+                # Append data to DataFrame
+                df = df.append({
+                    'Station': station,
+                    'Item Name': item_name,
+                    'Amount': amount,
+                    'Buy Price (Per Item)': buy_price,
+                    'Total Buy Price': total_buy_price,
+                    'Sell Price (Per Item)': sell_price,
+                    'Total Sell Price': total_sell_price
+                }, ignore_index=True)
+
+        # Save results to a file
+        save_results_to_file(df)
+
+        # Log the results DataFrame for debugging
+        logging.info(f"Generated report DataFrame: \n{df}")
+
+        # Return the DataFrame for printing
+        return df
+
+    except Exception as e:
+        logging.error(f"Error in overall moon goo handler: {str(e)}")
+        return None
 
 
 async def handle_help(message):

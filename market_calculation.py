@@ -1,4 +1,4 @@
-import aiohttp
+import os
 import asyncio
 import logging
 import json
@@ -10,6 +10,39 @@ API_URL = "https://evetycoon.com/api/v1/market/stats/10000002"
 SAVE_FILE = "market_stats.json"
 REGION_ID = '10000002'  # Region ID for The Forge
 MOON_GOO_ITEMS_FILE = 'metenox_goo.json'  # File with moon goo items
+API_BASE_URL = "https://evetycoon.com/api"
+
+async def fetch_market_stats_for_items():
+    try:
+        moon_goo_items = get_moon_goo_items()  # Get the type IDs of moon goo items
+        market_stats = {}
+
+        for type_id, item_name in moon_goo_items.items():
+            url = f"{API_BASE_URL}/v1/market/stats/10000002/{type_id}"
+            response = requests.get(url)
+
+            if response.status_code == 200:
+                data = response.json()
+                market_stats[type_id] = {
+                    "buyVolume": data["buyVolume"],
+                    "sellVolume": data["sellVolume"],
+                    "buyOrders": data["buyOrders"],
+                    "sellOrders": data["sellOrders"],
+                    "buyAvgFivePercent": data["buyAvgFivePercent"],
+                    "sellAvgFivePercent": data["sellAvgFivePercent"]
+                }
+                logging.info(f"Fetched market stats for item: {item_name}")
+            else:
+                logging.error(f"Failed to fetch data for {item_name}: {response.status_code}")
+
+        # Save market stats to a JSON file, replacing the old file
+        with open(SAVE_FILE, 'w') as f:
+            json.dump(market_stats, f, indent=4)
+
+        logging.info(f"Market stats updated and saved to {SAVE_FILE}")
+
+    except Exception as e:
+        logging.error(f"Failed to fetch market stats: {str(e)}")
 
 async def fetch_market_stats():
     try:
@@ -44,9 +77,7 @@ async def fetch_market_stats():
 
 async def calculate_market_data():
     try:
-        # Load moon goo items
-        with open(MOON_GOO_ITEMS_FILE, 'r') as file:
-            moon_goo_items = json.load(file)
+        moon_goo_items = get_moon_goo_items()
         
         if not moon_goo_items:
             logging.error("No moon goo items found.")
@@ -55,31 +86,25 @@ async def calculate_market_data():
         market_data = {}
         
         async def process_item(type_id, item_name):
-            stats = await fetch_market_stats(type_id)
+            stats = await fetch_market_stats_for_items(type_id)
             if stats:
                 market_data[item_name] = {
                     'buyVolume': stats.get('buyVolume'),
                     'sellVolume': stats.get('sellVolume'),
                     'buyOrders': stats.get('buyOrders'),
                     'sellOrders': stats.get('sellOrders'),
-                    'buyOutliers': stats.get('buyOutliers'),
-                    'sellOutliers': stats.get('sellOutliers'),
-                    'buyThreshold': stats.get('buyThreshold'),
-                    'sellThreshold': stats.get('sellThreshold'),
                     'buyAvgFivePercent': stats.get('buyAvgFivePercent'),
                     'sellAvgFivePercent': stats.get('sellAvgFivePercent')
                 }
         
-        # Run tasks for all moon goo items
         tasks = [process_item(type_id, item_name) for type_id, item_name in moon_goo_items.items()]
         await asyncio.gather(*tasks)
-        
-        # Save market data to JSON file
+
         with open('market_data.json', 'w') as file:
             json.dump(market_data, file, indent=4)
         
         logging.info("Market data calculation complete and saved to 'market_data.json'.")
-    
+
     except Exception as e:
         logging.error(f"Exception occurred during market data calculation: {str(e)}")
 
@@ -149,3 +174,10 @@ async def send_message_in_chunks(ctx, message, chunk_size=2000):
 def get_type_id_from_name(item_name):
     moon_goo_items = get_moon_goo_items()  # Load moon goo item ID mapping
     return moon_goo_items.get(item_name)
+
+def load_market_stats():
+    market_stats_path = "market_stats.json"
+    if os.path.exists(market_stats_path):
+        with open(market_stats_path, 'r') as f:
+            return json.load(f)
+    return {}

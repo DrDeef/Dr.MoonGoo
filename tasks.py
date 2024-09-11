@@ -24,7 +24,7 @@ async def fetch_market_stats_task():
     except Exception as e:
         logging.error(f"Exception in fetch_market_stats_task: {str(e)}")
 
-@tasks.loop(minutes=5)
+@tasks.loop(minutes=2)
 async def save_data_to_mongodb_task():
     try:
         # Load all server IDs (assuming these are stored in a config or accessible in some other way)

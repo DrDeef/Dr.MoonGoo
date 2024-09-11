@@ -206,7 +206,10 @@ def load_server_structures(server_id, corporation_id):
         logging.error(f"Error decoding JSON from file {filename}: {e}")
         return {}
 
-
+def save_results_to_file(df):
+    result_file_path = "moon_goo_calculation_results.txt"
+    df.to_csv(result_file_path, sep='\t', index=False)
+    logging.info(f"Results saved to {result_file_path}")
 
 def load_all_tokens():
     """Load all tokens from files."""
