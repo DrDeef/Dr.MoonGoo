@@ -319,7 +319,7 @@ async def handle_mongo_pricing(ctx):
         market_stats = load_market_stats()
 
         # DataFrame for better formatting
-        columns = ['Station', 'Item Name', 'Amount', 'Buy Price (Per Item)', 'Total Buy Price', 'Sell Price (Per Item)', 'Total Sell Price']
+        columns = ['Station', 'Item Name', 'Amount', 'Total Buy Price', 'Total Sell Price']
         df_data = []  # Using list to collect data for faster appending later
 
         # Log the loaded data for debugging
@@ -354,12 +354,10 @@ async def handle_mongo_pricing(ctx):
 
                     # Append row data to list for the DataFrame
                     df_data.append({
-                        'Station': station_name,
+                        'Station': station_name, 
                         'Item Name': item_name,
                         'Amount': amount,
-                        'Buy Price (Per Item)': format_number(buy_price),
                         'Total Buy Price': format_number(total_buy_price),
-                        'Sell Price (Per Item)': format_number(sell_price),
                         'Total Sell Price': format_number(total_sell_price)
                     })
 
