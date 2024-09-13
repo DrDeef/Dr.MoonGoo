@@ -14,7 +14,7 @@ from collections import defaultdict
 from structurecommands import get_all_structure_assets, get_moon_drills, update_structure_info
 from mongodatabase import collect_moon_goo_data_and_save
 from moongoo_commands import save_moon_goo_to_json, load_moon_goo_from_json, load_moon_goo_data
-from market_calculation import fetch_market_stats_for_items, load_market_stats
+from market_calculation import format_number, load_market_stats
 
 logging.basicConfig(level=logging.INFO)
 
@@ -308,53 +308,66 @@ async def handle_checkgas(ctx):
     else:
         await ctx.send(gas_info)
 
-
 async def handle_mongo_pricing(ctx):
     server_id = str(ctx.guild.id)
-    try:
-        # Collect moon goo data and save to MongoDB (if configured)
-        await collect_moon_goo_data_and_save(server_id)
 
-        # Load moon goo and market stats data
-        moon_goo_data = load_moon_goo_data()
+    try:
+        # Load moon goo data from the JSON file based on the server ID
+        moon_goo_data = await load_moon_goo_from_json(server_id)
+
+        # Load market stats data
         market_stats = load_market_stats()
 
         # DataFrame for better formatting
         columns = ['Station', 'Item Name', 'Amount', 'Buy Price (Per Item)', 'Total Buy Price', 'Sell Price (Per Item)', 'Total Sell Price']
-        df = pd.DataFrame(columns=columns)
+        df_data = []  # Using list to collect data for faster appending later
 
         # Log the loaded data for debugging
         logging.info(f"Loaded moon goo data: {moon_goo_data}")
         logging.info(f"Loaded market stats: {market_stats}")
 
-        # Loop through stations and calculate prices
-        for station, items in moon_goo_data.items():
-            for item in items:
-                item_name = item['name']
-                amount = item['amount']
-                item_id = item['item_id']
+        # Fetch the MOON_GOO_ITEMS mapping
+        moon_goo_items = moongoo.get_moon_goo_items()
 
-                # Get market stats for the item
-                if str(item_id) in market_stats:
-                    buy_price = market_stats[str(item_id)]['buyAvgFivePercent']
-                    sell_price = market_stats[str(item_id)]['sellAvgFivePercent']
-                else:
-                    buy_price = 0
-                    sell_price = 0
+        # Loop through stations and items in moon goo data
+        for station_name, items in moon_goo_data.items():
+            for item_name, amount in items.items():
+                try:
+                    # Fetch the item ID from the `MOON_GOO_ITEMS` mapping
+                    item_id = None
+                    for key, value in moon_goo_items.items():
+                        if value == item_name:
+                            item_id = key
+                            break
+                    
+                    if item_id is None:
+                        logging.warning(f"Item '{item_name}' not found in MOON_GOO_ITEMS mapping.")
+                        continue
 
-                total_buy_price = buy_price * amount
-                total_sell_price = sell_price * amount
+                    # Get market stats for the item
+                    item_stats = market_stats.get(str(item_id), {})
+                    buy_price = item_stats.get('buyAvgFivePercent', 0)
+                    sell_price = item_stats.get('sellAvgFivePercent', 0)
 
-                # Append data to DataFrame
-                df = df.append({
-                    'Station': station,
-                    'Item Name': item_name,
-                    'Amount': amount,
-                    'Buy Price (Per Item)': buy_price,
-                    'Total Buy Price': total_buy_price,
-                    'Sell Price (Per Item)': sell_price,
-                    'Total Sell Price': total_sell_price
-                }, ignore_index=True)
+                    total_buy_price = buy_price * amount
+                    total_sell_price = sell_price * amount
+
+                    # Append row data to list for the DataFrame
+                    df_data.append({
+                        'Station': station_name,
+                        'Item Name': item_name,
+                        'Amount': amount,
+                        'Buy Price (Per Item)': format_number(buy_price),
+                        'Total Buy Price': format_number(total_buy_price),
+                        'Sell Price (Per Item)': format_number(sell_price),
+                        'Total Sell Price': format_number(total_sell_price)
+                    })
+
+                except Exception as item_error:
+                    logging.error(f"Error processing item {item_name} in station {station_name}: {str(item_error)}")
+
+        # Create DataFrame from the collected data
+        df = pd.DataFrame(df_data, columns=columns)
 
         # Save results to a file
         save_results_to_file(df)
@@ -362,13 +375,12 @@ async def handle_mongo_pricing(ctx):
         # Log the results DataFrame for debugging
         logging.info(f"Generated report DataFrame: \n{df}")
 
-        # Return the DataFrame for printing
+        # Return the DataFrame for printing or further usage
         return df
 
     except Exception as e:
         logging.error(f"Error in overall moon goo handler: {str(e)}")
         return None
-
 
 async def handle_help(message):
     await message.channel.send(

@@ -31,7 +31,7 @@ async def fetch_market_stats_for_items():
                     "buyAvgFivePercent": data["buyAvgFivePercent"],
                     "sellAvgFivePercent": data["sellAvgFivePercent"]
                 }
-                logging.info(f"Fetched market stats for item: {item_name}")
+                logging.debug(f"Fetched market stats for item: {item_name}")
             else:
                 logging.error(f"Failed to fetch data for {item_name}: {response.status_code}")
 
@@ -44,36 +44,6 @@ async def fetch_market_stats_for_items():
     except Exception as e:
         logging.error(f"Failed to fetch market stats: {str(e)}")
 
-async def fetch_market_stats():
-    try:
-        moon_goo_items = get_moon_goo_items()  # Get the type IDs of moon goo items
-        market_stats = {}
-
-        for type_id in moon_goo_items.keys():
-            url = f"{API_URL}/{type_id}"
-            response = requests.get(url)
-
-            if response.status_code == 200:
-                data = response.json()
-                market_stats[type_id] = {
-                    "buyVolume": data["buyVolume"],
-                    "sellVolume": data["sellVolume"],
-                    "buyOrders": data["buyOrders"],
-                    "sellOrders": data["sellOrders"],
-                    "buyAvgFivePercent": data["buyAvgFivePercent"],
-                    "sellAvgFivePercent": data["sellAvgFivePercent"]
-                }
-            else:
-                logging.error(f"Failed to fetch data for type_id {type_id}: {response.status_code}")
-
-        # Save market stats to a JSON file, replacing the old file
-        with open(SAVE_FILE, 'w') as f:
-            json.dump(market_stats, f, indent=4)
-
-        logging.info(f"Market stats updated and saved to {SAVE_FILE}")
-
-    except Exception as e:
-        logging.error(f"Failed to fetch market stats: {str(e)}")
 
 async def calculate_market_data():
     try:
@@ -175,6 +145,15 @@ def get_type_id_from_name(item_name):
     moon_goo_items = get_moon_goo_items()  # Load moon goo item ID mapping
     return moon_goo_items.get(item_name)
 
+def format_number(num):
+    if num >= 1_000_000:
+        return f'{num / 1_000_000:.1f}M'
+    elif num >= 1_000:
+        return f'{num / 1_000:.1f}k'
+    else:
+        return str(num)
+
+    
 def load_market_stats():
     market_stats_path = "market_stats.json"
     if os.path.exists(market_stats_path):

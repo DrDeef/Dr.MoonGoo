@@ -6,7 +6,7 @@ from discord.ext import tasks
 from administration import refresh_all_tokens
 import os
 from mongodatabase import collect_moon_goo_data_and_save
-from market_calculation import fetch_market_stats
+from market_calculation import fetch_market_stats_for_items
 import json
 
 # Task to refresh all tokens
@@ -20,11 +20,11 @@ async def refresh_token_task():
 @tasks.loop(hours=6)
 async def fetch_market_stats_task():
     try:
-        await fetch_market_stats()
+        await fetch_market_stats_for_items()
     except Exception as e:
         logging.error(f"Exception in fetch_market_stats_task: {str(e)}")
 
-@tasks.loop(minutes=2)
+@tasks.loop(minutes=60)
 async def save_data_to_mongodb_task():
     try:
         # Load all server IDs (assuming these are stored in a config or accessible in some other way)

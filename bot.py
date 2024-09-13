@@ -43,7 +43,7 @@ tokens = config.load_all_tokens()
 server_ids = config.get_all_server_ids()
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 @bot.event
 async def on_ready():
