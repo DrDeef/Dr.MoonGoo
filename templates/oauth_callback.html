@@ -1,38 +1,244 @@
 <!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {
-            background: url('https://web-cdn.eveonline.com/aws/eveonline/sso/background.jpg') no-repeat center center fixed;
-            background-size: cover;
-            font-family: 'Arial', sans-serif;
-        }
-        .message-box {
-            width: 50%;
-            margin: 150px auto;
-            padding: 20px;
-            background-color: rgba(30,30,30,.9);
-            color: white;
-            text-align: center;
-            font-family: 'Shentox-Medium', Arial;
-            font-size: 20px;
-            border-radius: 10px;
-        }
-    </style>
-    <link href="https://fonts.googleapis.com/css2?family=Shentox:wght@400&display=swap" rel="stylesheet">
-</head>
-<body>
-    <div class="message-box">
-        <h1>Authentication Successful</h1>
-        {% if character_info %}
-            <p>Character Name: {{ character_info.CharacterName }}</p>
-            
-            <p>Character ID: {{ character_info.CharacterID }}</p>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>About Dr.MoonGoo</title>
+        <style>
+            /* Global Reset */
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
 
-            <p>Corporation ID: {{ corporation_id }}</p>
-        {% else %}
-            <p>No character information available.</p>
-        {% endif %}
-    </div>
-</body>
+            /* Body Styling */
+            body {
+                font-family: 'Arial', sans-serif;
+                overflow: hidden;
+                background-color: black;
+            }
+
+            /* Parallax Container */
+            .parallax-container {
+                position: relative;
+                width: 100vw;
+                height: 100vh;
+                overflow: hidden;
+            }
+
+            /* Background Layer - Moon Mining Station */
+            .background-layer {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 150%;
+                height: 150%;
+                background: url('../images/moondrill_bg.jpeg') no-repeat center center;
+                background-size: cover;
+                transform: translate(-50%, -50%);
+                transition: transform 0.1s ease-out;
+            }
+
+            /* Space Dust Layer */
+            .dust-layer {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 200%;
+                height: 200%;
+                pointer-events: none;
+                overflow: hidden;
+            }
+
+            /* Individual Dust Particles */
+            .dust-particle {
+                position: absolute;
+                width: 10px;
+                height: 10px;
+                background-color: rgba(253, 246, 43, 0.3); /* Yellow glow with transparency */
+                border-radius: 50%;
+                box-shadow: 0px 0px 10px 5px rgba(253, 246, 43, 0.5); /* Glow effect */
+                opacity: 0;
+                animation: float 8s infinite ease-in-out, fade 5s infinite ease-in-out alternate;
+            }
+
+            /* Fade in/out effect for particles */
+            @keyframes fade {
+                0% {
+                    opacity: 0;
+                }
+                50% {
+                    opacity: 1;
+                }
+                100% {
+                    opacity: 0;
+                }
+            }
+
+            /* Float animation for particles */
+            @keyframes float {
+                0% {
+                    transform: translate(0, 0);
+                }
+                50% {
+                    transform: translate(10px, -20px);
+                }
+                100% {
+                    transform: translate(-10px, 10px);
+                }
+            }
+
+            /* Content Box Styling */
+            .content-box {
+                position: relative;
+                z-index: 10;
+                width: 95%;
+                max-width: 1100px;
+                margin: 100px auto;
+                padding: 70px;
+                background-color: rgba(30, 30, 30, 0.9);
+                border-radius: 15px;
+                color: white;
+                text-align: center;
+                box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.5);
+            }
+
+            h1, h2 {
+                color: #FFCC00;
+                margin-bottom: 20px;
+            }
+
+            p {
+                margin: 20px 0;
+                line-height: 1.6;
+            }
+
+            /* Link Styling */
+            a {
+                display: inline-block;
+                margin: 10px;
+                padding: 12px 18px;
+                background-color: #FFCC00;
+                color: #1E1E1E;
+                text-decoration: none;
+                border-radius: 5px;
+                font-weight: bold;
+                transition: background-color 0.3s;
+            }
+
+            a:hover {
+                background-color: #E6B800;
+            }
+
+            /* Responsive Design */
+            @media (max-width: 768px) {
+                .content-box {
+                    width: 95%;
+                    padding: 20px;
+                }
+
+                h1, h2 {
+                    font-size: 1.5rem;
+                }
+
+                p {
+                    font-size: 1rem;
+                }
+
+                a {
+                    padding: 10px 15px;
+                    font-size: 1rem;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Parallax Background -->
+        <div class="parallax-container">
+            <div class="background-layer"></div>
+            <div class="dust-layer" id="dust-layer"></div>
+        </div>
+
+        <!-- Message Box Content -->
+        <div class="content-box">
+            <h1>Authentication Successful</h1>
+            {% if character_info %}
+                <p>Character Name: {{ character_info.CharacterName }}</p>
+                <p>Character ID: {{ character_info.CharacterID }}</p>
+                <p>Corporation ID: {{ corporation_id }}</p>
+            {% else %}
+                <p>No character information available.</p>
+            {% endif %}
+        </div>
+    </body>
+
+    <script>
+        // Parallax effect for moon mining station
+        const backgroundLayer = document.querySelector('.background-layer');
+        const dustLayer = document.getElementById('dust-layer');
+        const bubbleParticles = 150;
+        const spawnInterval = 1000; // Time in milliseconds to spawn new particles
+
+        // Set the initial position for the parallax background (before mouse movement)
+        function setInitialBackgroundPosition() {
+            const initialX = 0;
+            const initialY = 0;
+            backgroundLayer.style.transform = `translate(calc(-50% + ${initialX}px), calc(-50% + ${initialY}px))`;
+        }
+
+        // Handle mouse movement for parallax effect
+        document.addEventListener('mousemove', function (e) {
+            const mouseX = (e.clientX / window.innerWidth) - 0.5;
+            const mouseY = (e.clientY / window.innerHeight) - 0.5;
+
+            // Move the background layer slightly based on mouse movement
+            const parallaxX = mouseX * 15;
+            const parallaxY = mouseY * 15;
+            backgroundLayer.style.transform = `translate(calc(-50% + ${parallaxX}px), calc(-50% + ${parallaxY}px))`;
+        });
+
+        // Create a bubble particle with random properties
+        function createBubbleParticle() {
+            let particle = document.createElement('div');
+            particle.classList.add('dust-particle');
+
+            // Randomize position and size of bubbles, distributed across the screen
+            particle.style.left = (Math.random() * 100) + 'vw';
+            particle.style.top = (Math.random() * 100) + 'vh';
+            particle.style.width = (Math.random() * 20 + 10) + 'px';
+            particle.style.height = particle.style.width;
+
+            // Add yellow glow effect and transparency for cloud-like bubbles
+            particle.style.background = 'rgba(255, 255, 0, 0.5)';
+            particle.style.boxShadow = '0 0 15px rgba(255, 255, 0, 0.7)';
+            particle.style.opacity = Math.random() * 0.4 + 0.3;
+
+            // Add fading and floating animation
+            particle.style.animation = `fade ${Math.random() * 20 + 15}s ease-in-out infinite, float ${Math.random() * 20 + 15}s ease-in-out infinite`;
+
+            dustLayer.appendChild(particle);
+        }
+
+        // Create initial bubble particles
+        function createInitialBubbleParticles() {
+            for (let i = 0; i < bubbleParticles; i++) {
+                createBubbleParticle();
+            }
+        }
+
+        // Spawn additional particles continuously
+        function spawnBubbleParticles() {
+            setInterval(() => {
+                createBubbleParticle();
+            }, spawnInterval);
+        }
+
+        // Call functions to create initial particles and spawn more over time
+        createInitialBubbleParticles();
+        spawnBubbleParticles();
+
+        // Set the initial background position
+        setInitialBackgroundPosition();
+    </script>
 </html>
