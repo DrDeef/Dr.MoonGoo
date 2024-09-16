@@ -14,6 +14,7 @@ from scheduler import run_alert_scheduler
 import config
 import tasks
 from datetime import datetime
+from flask import Flask, send_from_directory
 from administration import get_character_info, get_corporation_id
 from commands import (
     handle_mongo_pricing, handle_setup, handle_authenticate, handle_update_moondrills, handle_checkgas, handle_spacegoblin, handle_showadmin, handle_help, handle_fetch_moon_goo_assets
@@ -175,24 +176,18 @@ async def moongoo_report(ctx):
         await ctx.send("Generating the moon goo report. Please wait...")
 
         # Run the overall handler function
-        df = await handle_mongo_pricing(ctx)
+        await handle_mongo_pricing(ctx)
 
-        if df is not None:
-            # Convert DataFrame to a string format for Discord output
-            result = df.to_string(index=False)
-
-            # Send the results in chunks if it's too large for a single message
-            chunk_size = 1900  # Discord message character limit
-            for i in range(0, len(result), chunk_size):
-                await ctx.send(f"```\n{result[i:i+chunk_size]}\n```")
-            
-            await ctx.send("Moon goo report has been generated and sent.")
-        else:
-            await ctx.send("An error occurred while generating the moon goo report.")
+        await ctx.send("Moon goo report has been generated and sent.")
 
     except Exception as e:
         logging.error(f"Error in moongoo_report command: {e}")
         await ctx.send(f"An error occurred: {e}")
+
+@app.route('/images/<path:filename>')
+def serve_image(filename):
+    # Ensure that the 'images' folder is in the same directory as your app.py
+    return send_from_directory('images', filename)
 
 
 @app.route('/oauth-callback')
@@ -252,6 +247,10 @@ def oauth_callback():
 @app.route('/terms-of-service')
 def tos():
     return render_template('tos.html')
+
+@app.route('/about')
+def about():
+    return render_template('about.html')
 
 @app.route('/privacy-policy')
 def privacy():
