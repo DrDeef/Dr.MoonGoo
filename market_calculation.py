@@ -3,6 +3,7 @@ import asyncio
 import logging
 import json
 import requests
+import discord
 import pandas as pd 
 from moongoo import get_moon_goo_items
 
@@ -135,10 +136,21 @@ async def calculate_moon_goo_values(ctx):
         logging.error(f"Error calculating moon goo values: {str(e)}")
         await ctx.send("An error occurred while calculating moon goo values.")
 
-# Utility function to send large messages in chunks (Discord message limit workaround)
-async def send_message_in_chunks(ctx, message, chunk_size=2000):
-    for i in range(0, len(message), chunk_size):
-        await ctx.send(message[i:i + chunk_size])
+async def send_message_in_chunks(interaction: discord.Interaction, message: str, chunk_size: int = 2000):
+    # Split the message into chunks if necessary
+    while len(message) > chunk_size:
+        # Find the last newline within the limit to avoid breaking a line
+        split_index = message.rfind('\n', 0, chunk_size)
+        if split_index == -1:
+            split_index = chunk_size
+        
+        # Send the chunked message
+        await interaction.response.send_message(message[:split_index])
+        message = message[split_index:].lstrip('\n')
+    
+    # Send the remaining part of the message
+    if message:
+        await interaction.response.send_message(message)
 
 # Utility to get item type_id from the name (This assumes you have some mapping function)
 def get_type_id_from_name(item_name):

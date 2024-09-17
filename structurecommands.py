@@ -1,10 +1,34 @@
 import json
 import logging
-import config
+import discord
+from discord.ext import commands
 import aiohttp
+import os
 import asyncio
 from administration import get_access_token, extract_corporation_id_from_filename
 from config import save_server_structures, load_server_structures
+
+def load_structures(server_id, corporation_id):
+    file_path = f"{server_id}_{corporation_id}_structures.json"
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+            return data.get("structure_info", {})
+    else:
+        return {}
+
+async def create_structure_select_menu(interaction: discord.Interaction):
+    server_id = str(interaction.guild.id)
+    structures = load_structures(server_id)
+
+    if structures:
+        options = [discord.SelectOption(label=name, value=str(id)) for id, name in structures.items()]
+        select = discord.ui.Select(placeholder='Select a structure...', options=options, custom_id='select_structure')
+        view = discord.ui.View()
+        view.add_item(select)
+        await interaction.response.send_message("Please select a structure:", view=view)
+    else:
+        await interaction.response.send_message("No structures found for this server.")
 
 
 

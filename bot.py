@@ -13,11 +13,12 @@ from discord.utils import get
 from scheduler import run_alert_scheduler
 import config
 import tasks
+from moongoo_commands import load_moon_goo_from_json
 from datetime import datetime
 from flask import Flask, send_from_directory
 from administration import get_character_info, get_corporation_id
 from commands import (
-    handle_mongo_pricing, handle_setup, handle_authenticate, handle_update_moondrills, handle_checkgas, handle_spacegoblin, handle_showadmin, handle_help, handle_fetch_moon_goo_assets
+    handle_mongo_pricing, handle_setup, handle_authenticate, handle_update_moondrills, handle_checkgas, handle_spacegoblin, handle_showadmin, handle_help, handle_fetch_moon_goo_assets, handle_structure_pricing
 )
 
 # Fetch the configuration values
@@ -127,6 +128,41 @@ async def selectalertchannel(ctx):
 
     await ctx.send("Select an alert channel:", view=view)
 
+# Assuming bot is already defined as 'bot'
+@bot.command(name='report')
+async def report(ctx):
+    server_id = str(ctx.guild.id)
+    moon_goo_data = await load_moon_goo_from_json(server_id)
+
+    if moon_goo_data:
+        # Create options for each station (assuming the station names can be used for selection)
+        options = [discord.SelectOption(label=name, value=name) for name in moon_goo_data.keys()]
+        select = discord.ui.Select(placeholder='Select a structure...', options=options, custom_id='select_structure')
+        view = discord.ui.View()
+        view.add_item(select)
+        await ctx.send("Please select a structure to report on:", view=view)
+    else:
+        await ctx.send("No moon goo data found for this server.")
+
+@bot.event
+async def on_interaction(interaction: discord.Interaction):
+    # Check if it's a component interaction
+    if interaction.type == discord.InteractionType.component:
+        # Fetch custom_id from the component interaction data
+        custom_id = interaction.data.get('custom_id', '')
+        
+        if custom_id == 'select_structure':
+            # Get the selected structure name
+            selected_structure_name = interaction.data['values'][0]
+            moon_goo_data = await load_moon_goo_from_json(str(interaction.guild.id))
+
+            # Ensure the selected structure is in the data
+            if selected_structure_name in moon_goo_data:
+                await handle_structure_pricing(interaction, selected_structure_name)
+            else:
+                await interaction.response.send_message("Selected structure not found in the moon goo data.")
+
+
 @bot.command()
 async def authenticate(ctx):
     if not await is_admin(ctx):
@@ -178,7 +214,6 @@ async def moongoo_report(ctx):
         # Run the overall handler function
         await handle_mongo_pricing(ctx)
 
-        await ctx.send("Moon goo report has been generated and sent.")
 
     except Exception as e:
         logging.error(f"Error in moongoo_report command: {e}")

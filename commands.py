@@ -6,15 +6,17 @@ import config
 import moongoo
 import pandas as pd
 import os
+import discord
 from moongoo_commands import handle_fetch_moon_goo_assets
 from config import save_results_to_file, save_server_structures, load_server_structures
 from datetime import datetime, timedelta
 from administration import extract_corporation_id_from_filename
 from collections import defaultdict
+from moongoo import get_moon_goo_items
 from structurecommands import get_all_structure_assets, get_moon_drills, update_structure_info
 from mongodatabase import collect_moon_goo_data_and_save
 from moongoo_commands import save_moon_goo_to_json, load_moon_goo_from_json, load_moon_goo_data
-from market_calculation import format_number, load_market_stats
+from market_calculation import format_number, load_market_stats, send_message_in_chunks
 
 logging.basicConfig(level=logging.INFO)
 
@@ -166,7 +168,7 @@ async def handle_update_moondrills(ctx):
     structure_info = server_structures.get('structure_info', {})
 
     # Debug step: Print the loaded structure_info to check if it matches the expected JSON format
-    logging.info(f"Loaded structure_info: {json.dumps(structure_info, indent=4)}")
+    logging.debug(f"Loaded structure_info: {json.dumps(structure_info, indent=4)}")
 
     # Prepare the response with structure names and IDs
     response_message = "Metenox Moondrills successfully updated.\n"
@@ -312,25 +314,26 @@ async def handle_mongo_pricing(ctx):
     server_id = str(ctx.guild.id)
 
     try:
+        logging.debug("Starting moon goo pricing process")
+
         # Load moon goo data from the JSON file based on the server ID
         moon_goo_data = await load_moon_goo_from_json(server_id)
+        logging.debug(f"Loaded moon goo data for server {server_id}: {moon_goo_data}")
 
         # Load market stats data
         market_stats = load_market_stats()
-
-        # DataFrame for better formatting
-        columns = ['Station', 'Item Name', 'Amount', 'Total Buy Price', 'Total Sell Price']
-        df_data = []  # Using list to collect data for faster appending later
-
-        # Log the loaded data for debugging
-        logging.info(f"Loaded moon goo data: {moon_goo_data}")
-        logging.info(f"Loaded market stats: {market_stats}")
+        logging.debug(f"Loaded market stats: {market_stats}")
 
         # Fetch the MOON_GOO_ITEMS mapping
         moon_goo_items = moongoo.get_moon_goo_items()
 
+        # Initialize output string
+        output = []
+
         # Loop through stations and items in moon goo data
         for station_name, items in moon_goo_data.items():
+            # Add station name in bold
+            output.append(f"**{station_name}:**")
             for item_name, amount in items.items():
                 try:
                     # Fetch the item ID from the `MOON_GOO_ITEMS` mapping
@@ -352,33 +355,106 @@ async def handle_mongo_pricing(ctx):
                     total_buy_price = buy_price * amount
                     total_sell_price = sell_price * amount
 
-                    # Append row data to list for the DataFrame
-                    df_data.append({
-                        'Station': station_name, 
-                        'Item Name': item_name,
-                        'Amount': amount,
-                        'Total Buy Price': format_number(total_buy_price),
-                        'Total Sell Price': format_number(total_sell_price)
-                    })
+                    # Append formatted data to output
+                    formatted_buy_price = format_number(total_buy_price)
+                    formatted_sell_price = format_number(total_sell_price)
+                    
+                    output.append(f"> **{amount}** - {item_name} -> **Buy**: {formatted_buy_price} **Sell**: {formatted_sell_price}")
 
                 except Exception as item_error:
                     logging.error(f"Error processing item {item_name} in station {station_name}: {str(item_error)}")
 
-        # Create DataFrame from the collected data
-        df = pd.DataFrame(df_data, columns=columns)
+        # Convert the output list to a single string
+        output_message = "\n".join(output)
+        logging.debug(f"Generated output message: {output_message}")
 
-        # Save results to a file
-        save_results_to_file(df)
+        # Split the message into chunks if necessary
+        max_message_length = 2000
+        while len(output_message) > max_message_length:
+            # Find the last newline within the limit to avoid breaking a line
+            split_index = output_message.rfind('\n', 0, max_message_length)
+            if split_index == -1:
+                split_index = max_message_length
+            
+            # Send the chunked message
+            await ctx.send(output_message[:split_index])
+            logging.debug(f"Sent message chunk: {output_message[:split_index]}")
+            output_message = output_message[split_index:].lstrip('\n')
 
-        # Log the results DataFrame for debugging
-        logging.info(f"Generated report DataFrame: \n{df}")
+        # Send the remaining part of the message
+        if output_message:
+            await ctx.send(output_message)
+            logging.debug(f"Sent remaining message: {output_message}")
 
-        # Return the DataFrame for printing or further usage
-        return df
+    except Exception as e:
+        # Log the error and send the message only if an actual exception occurs
+        logging.error(f"Error in overall moon goo handler: {str(e)}")
+
+async def handle_structure_pricing(interaction: discord.Interaction, structure_name: str):
+    server_id = str(interaction.guild.id)
+
+    try:
+        logging.debug("Starting moon goo pricing process for structure")
+
+        # Load moon goo data from the JSON file based on the server ID
+        moon_goo_data = await load_moon_goo_from_json(server_id)
+        logging.debug(f"Loaded moon goo data for server {server_id}: {moon_goo_data}")
+
+        # Load market stats data
+        market_stats = load_market_stats()
+        logging.debug(f"Loaded market stats: {market_stats}")
+
+        # Fetch the MOON_GOO_ITEMS mapping
+        moon_goo_items = get_moon_goo_items()
+
+        # Initialize output string
+        output = []
+
+        # Process the data only for the selected structure
+        if structure_name in moon_goo_data:
+            items = moon_goo_data[structure_name]
+            output.append(f"**{structure_name}:**")
+            for item_name, amount in items.items():
+                try:
+                    # Fetch the item ID from the `MOON_GOO_ITEMS` mapping
+                    item_id = None
+                    for key, value in moon_goo_items.items():
+                        if value == item_name:
+                            item_id = key
+                            break
+
+                    if item_id is None:
+                        logging.warning(f"Item '{item_name}' not found in MOON_GOO_ITEMS mapping.")
+                        continue
+
+                    # Get market stats for the item
+                    item_stats = market_stats.get(str(item_id), {})
+                    buy_price = item_stats.get('buyAvgFivePercent', 0)
+                    sell_price = item_stats.get('sellAvgFivePercent', 0)
+
+                    total_buy_price = buy_price * amount
+                    total_sell_price = sell_price * amount
+
+                    # Append formatted data to output
+                    formatted_buy_price = format_number(total_buy_price)
+                    formatted_sell_price = format_number(total_sell_price)
+
+                    output.append(f"**{item_name}**: {amount} --- **Buy**: {formatted_buy_price} --- **Sell**: {formatted_sell_price}")
+
+                except Exception as item_error:
+                    logging.error(f"Error processing item {item_name} in structure {structure_name}: {str(item_error)}")
+
+        # Convert the output list to a single string
+        output_message = "\n".join(output)
+        logging.debug(f"Generated output message: {output_message}")
+
+        # Send the message in chunks if necessary
+        await send_message_in_chunks(interaction, output_message)
 
     except Exception as e:
         logging.error(f"Error in overall moon goo handler: {str(e)}")
-        return None
+        await interaction.response.send_message("An error occurred while processing the moon goo data.")
+
 
 async def handle_help(message):
     await message.channel.send(
