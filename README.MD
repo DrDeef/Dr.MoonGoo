@@ -1,4 +1,4 @@
-![Version](https://img.shields.io/badge/version-0.2-green) ![Docker Pulls](https://img.shields.io/docker/pulls/drdeef/drmoongoo) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/drdeef/Dr.MoonGoo?style=flat&color=yellow)
+![Version](https://img.shields.io/badge/version-0.5-green) ![Docker Pulls](https://img.shields.io/docker/pulls/drdeef/drmoongoo) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/drdeef/Dr.MoonGoo?style=flat&color=yellow)
 
 
 
@@ -18,6 +18,7 @@ https://discord.com/oauth2/authorize?client_id=1242230305541197864
 
 - **OAuth2 Authentication**: Securely authenticate with the EVE Online API.
 - **Structure Monitoring**: Track and check conditions of EVE Online structures.
+- **Market Calculation**: Dr.Moongoo will calculate the price of the materials in all or the selected structure
 - **Goo-Alert**: Set a channel to check for Gas and Fuel levels every hour and alerts you if it falls short.
   - An alert will be send 48 Hours and 24 Hours in regards of the depletion of the Gas / Fuel
 - **Gas Check**: Monitor gas levels in moon drilling structures and receive alerts if gas is low.
@@ -29,6 +30,7 @@ https://discord.com/oauth2/authorize?client_id=1242230305541197864
 - !authenticate: Authenticate yourself against the ESI
 - !updatemoondrills: Fetch the latest structures in your corporations
 - !checkGoo: Prints out the current Goo Status of your strucutres
+- !report: Select the station you want a report with price calculation
 - !selectalertchannel: Select the channel you wanna be alerted to...
 
 ## Standalone Setup
@@ -43,7 +45,7 @@ Or you build your Dockerimage yourself with the `Dockerfile`
 Run the Container with:
 
 ```bash
-docker run -d -p 5005:5005 -v /path/to/local/config.yaml:/usr/src/app/config.yaml drdeef/drmoongoo:0.1
+docker run -d -p 5005:5005 -v /path/to/local/config.yaml:/usr/src/app/config.yaml drdeef/drmoongoo:0.5
 ```
 
 ### Without Docker
@@ -114,6 +116,13 @@ eve_online_client_id: YOUR_EVE_ONLINE_CLIENT_ID
 eve_online_secret_key: YOUR_EVE_ONLINE_SECRET_KEY
 ```
 
+## Market Calculation
+**Thanks to [Janice](https://janice.e-351.com) for the API Key**
+
+- Calculation is done every 6 hours but updated when changes are detected
+- Pricing Calculation will be done with the Jita Buy / Sell (Immediate)
+
+
 ## Magmatic Gas & Fuelblock Calculation
 
 Calculation is based on ingame values
@@ -123,6 +132,9 @@ Calculation is based on ingame values
 
 
 ## Example Bot Response
+> !report
+
+<img src="images/structure_report.png" alt="Bot Response" width="400"/>
 
 > !checkGas
 
@@ -153,13 +165,12 @@ Gas runs out in: **0 Days 8 Hours**
 
 [![Mem3nto Mori](https://images.evetech.net/corporations/98676479/logo?size=128)](https://discord.gg/kU3EsHnjVc)[![Regnum Astera](https://e.dotlan.net/images/Alliance/99012040_128.png)](https://discord.gg/uPkd893FZV)
 
-
 If you’re looking for a strong and dedicated EVE Online alliance to join, consider **Regnum Astera**!
 Join us and be part of something epic!
 
 For more information reach out to us directly on [Discord](https://discord.gg/uPkd893FZV)
 
-Happy drilling! 🚀
+Happy Mooning! 🚀
 
 ## Donate
 
@@ -167,9 +178,7 @@ If you like the Bot, please consider donating ISK ingame to [PoorInternetGuy](ht
 
 ## Terms<a name="terms"></a>
 
-> \[!CAUTION\]
-> This is an open-source project without any guarantees. Use it at your own risk.
-
+> **This is an open-source project without any guarantees. Use it at your own risk.**
 
 ## Contributing<a name="contribute"></a>
 
