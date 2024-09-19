@@ -206,17 +206,17 @@ async def goohelp(ctx):
 async def spacegoblin(ctx):
     await handle_spacegoblin(ctx)
 
-@bot.command(name="moongoo_report")
-async def moongoo_report(ctx):
+@bot.command(name="reportAll")
+async def moongoo_report_all(ctx):
     try:
-        await ctx.send("Generating the moon goo report. Please wait...")
+        await ctx.send("Generating the moon goo report. Please wait... \n ")
 
         # Run the overall handler function
         await handle_mongo_pricing(ctx)
 
 
     except Exception as e:
-        logging.error(f"Error in moongoo_report command: {e}")
+        logging.error(f"Error in moongoo_report_all command: {e}")
         await ctx.send(f"An error occurred: {e}")
 
 @app.route('/images/<path:filename>')
@@ -291,7 +291,7 @@ def about():
 def privacy():
     return render_template('policy.html')
 
-bot_version = "0.2"  
+bot_version = "0.5"  
 
 #### bot start, do not edit!
 if __name__ == "__main__":
