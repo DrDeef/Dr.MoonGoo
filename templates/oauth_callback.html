@@ -1,38 +1,196 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Dr.MoonGoo</title>
     <style>
-        body {
-            background: url('https://web-cdn.eveonline.com/aws/eveonline/sso/background.jpg') no-repeat center center fixed;
-            background-size: cover;
-            font-family: 'Arial', sans-serif;
+        /* Global Reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        .message-box {
-            width: 50%;
-            margin: 150px auto;
-            padding: 20px;
-            background-color: rgba(30,30,30,.9);
+
+        /* Body Styling */
+        body {
+            font-family: 'Arial', sans-serif;
+            overflow: auto;
+            background-color: black;
+        }
+
+        /* Parallax Container */
+        .parallax-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Background Layer - Moon Mining Station */
+        .background-layer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 150%;
+            height: 150%;
+            background: url('/images/moondrill_bg.jpeg') no-repeat center center;
+            background-size: cover;
+            transform: translate(-50%, -50%);
+            transition: transform 0.1s ease-out;
+        }
+
+        /* Space Dust Layer */
+        .dust-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 1; /* Ensure it's below the content-box */
+        }
+
+        /* Individual Dust Particles */
+        .dust-particle {
+            position: absolute;
+            width: 40px; /* Increased size */
+            height: 40px; /* Increased size */
+            background-color: rgba(255, 255, 0, 0.8); /* Bright yellow */
+            border-radius: 50%;
+            box-shadow: 0px 0px 40px rgba(255, 255, 0, 1); /* Increased glow */
+            opacity: 0;
+            animation: float 40s infinite linear, fade 10s infinite ease-in-out;
+        }
+
+        /* Fade in/out effect for particles */
+        @keyframes fade {
+            0% { opacity: 0; }
+            50% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* Float animation for particles */
+        @keyframes float {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(-120vw, -120vh); } /* Wider movement range */
+        }
+
+        /* Content Box Styling */
+        .content-box {
+            position: relative;
+            z-index: 10; /* Make sure it's above the dust layer */
+            width: 95%;
+            max-width: 1100px;
+            margin: 100px auto;
+            padding: 70px;
+            background-color: rgba(30, 30, 30, 0.9);
+            border-radius: 15px;
             color: white;
             text-align: center;
-            font-family: 'Shentox-Medium', Arial;
-            font-size: 20px;
-            border-radius: 10px;
+            box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        h1, h2 {
+            color: #FFCC00;
+            margin-bottom: 20px;
+        }
+
+        p {
+            margin: 20px 0;
+            line-height: 1.6;
+        }
+
+        /* Link Styling */
+        a {
+            display: inline-block;
+            margin: 10px;
+            padding: 12px 18px;
+            background-color: #FFCC00;
+            color: #1E1E1E;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        a:hover {
+            background-color: #E6B800;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .content-box {
+                width: 95%;
+                padding: 20px;
+            }
+
+            h1, h2 {
+                font-size: 1.5rem;
+            }
+
+            p {
+                font-size: 1rem;
+            }
+
+            a {
+                padding: 10px 15px;
+                font-size: 1rem;
+            }
         }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Shentox:wght@400&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="message-box">
-        <h1>Authentication Successful</h1>
-        {% if character_info %}
-            <p>Character Name: {{ character_info.CharacterName }}</p>
-            
-            <p>Character ID: {{ character_info.CharacterID }}</p>
+    <div class="parallax-container">
+        <!-- Background layer for moon mining station -->
+        <div class="background-layer"></div>
 
-            <p>Corporation ID: {{ corporation_id }}</p>
-        {% else %}
-            <p>No character information available.</p>
-        {% endif %}
+        <!-- Space dust layer -->
+        <div class="dust-layer" id="dust-layer"></div>
+
+        <!-- Content box -->
+        <div class="content-box">
+            <h1>Authentication Successful</h1>
+            {% if character_info %}
+                <p>Character Name: {{ character_info.CharacterName }}</p>
+                <p>Character ID: {{ character_info.CharacterID }}</p>
+                <p>Corporation ID: {{ corporation_id }}</p>
+            {% else %}
+                <p>No character information available.</p>
+            {% endif %}
+        </div>
     </div>
+    <script>
+        // Space dust effect
+        const dustLayer = document.getElementById('dust-layer');
+        const dustParticlesCount = 150; // Increased number of particles for coverage
+        const spawnInterval = 1500; // Time in milliseconds to spawn new particles
+
+        // Create a dust particle with random properties
+        function createDustParticle() {
+            let particle = document.createElement('div');
+            particle.classList.add('dust-particle');
+            
+            // Randomize the position to spread out from a larger area around the bottom right
+            const size = Math.random() * 30 + 20; // Size between 30px and 70px
+            const x = Math.random() * 20 + 80; // Start within 20% from the right edge
+            const y = Math.random() * 20 + 80; // Start within 20% from the bottom edge
+            particle.style.width = `${size}px`;
+            particle.style.height = `${size}px`;
+            particle.style.left = `${x}vw`;
+            particle.style.top = `${y}vh`;
+            
+            dustLayer.appendChild(particle);
+
+            // Remove the particle after animation ends
+            setTimeout(() => {
+                particle.remove();
+            }, 40000); // Duration of the particle's existence (40 seconds)
+        }
+
+        // Spawn particles at regular intervals
+        setInterval(createDustParticle, spawnInterval);
+    </script>
 </body>
 </html>

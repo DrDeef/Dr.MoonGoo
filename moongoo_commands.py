@@ -1,6 +1,7 @@
 import discord
 import json
 import logging
+import os
 import aiohttp
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -11,33 +12,69 @@ from moongoo import get_moon_goo_items
 
 logging.basicConfig(level=logging.INFO)
 
-async def save_moon_goo_to_json(moon_drill_assets):
+async def save_moon_goo_to_json(moon_drill_assets, server_id):
     try:
         # Convert defaultdict to a regular dictionary
         regular_dict = {k: dict(v) for k, v in moon_drill_assets.items()}
+
+        # Create filename based on server_id
+        filename = f"{server_id}_metenox_goo.json"
         logging.info(f"Saving moon goo data to JSON: {regular_dict}")
-        with open('metenox_goo.json', 'w') as file:
+
+        with open(filename, 'w') as file:
             json.dump(regular_dict, file, indent=4)
     except IOError as e:
         logging.error(f"Error saving moon goo info to JSON file: {e}")
 
-async def load_moon_goo_from_json():
+async def load_moon_goo_from_json(server_id):
+    filename = f"{server_id}_metenox_goo.json"
     try:
-        with open('metenox_goo.json', 'r') as file:
-            data = json.load(file) or {}
-            # Convert loaded data back to a regular dict
-            moon_goo_items = dict(data)
-            return moon_goo_items
+        if os.path.exists(filename):
+            with open(filename, 'r') as file:
+                data = json.load(file) or {}
+                # Convert loaded data back to a regular dict
+                moon_goo_items = dict(data)
+                logging.info(f"Loaded moon goo data from {filename}: {moon_goo_items}")
+                return moon_goo_items
+        else:
+            logging.warning(f"{filename} not found.")
+            return {}
     except FileNotFoundError:
+        logging.error(f"File not found: {filename}")
         return {}
+    except json.JSONDecodeError:
+        logging.error(f"Error decoding JSON from file: {filename}")
+        return {}
+    
+def load_moon_goo_data(server_id):
+    try:
+        # Construct the filename pattern based on server_id
+        filename_pattern = f"{server_id}_*_metenox_goo.json"
+        matching_files = [f for f in os.listdir('.') if f.startswith(f"{server_id}_") and f.endswith("_metenox_goo.json")]
 
-import os
+        if not matching_files:
+            logging.warning(f"No moon goo JSON files found for server {server_id}.")
+            return {}
+
+        moon_goo_data = {}
+        for file_name in matching_files:
+            with open(file_name, 'r') as file:
+                data = json.load(file)
+                # Use the file name to determine the station or any other relevant key
+                station_id = file_name.split('_')[1]  # Adjust this split based on your file naming
+                moon_goo_data[station_id] = data
+        
+        logging.info(f"Loaded moon goo data from files: {matching_files}")
+        return moon_goo_data
+    
+    except Exception as e:
+        logging.error(f"Error loading moon goo data: {str(e)}")
+        return {}   
 
 async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
+    server_id = str(ctx.guild.id)
     moon_goo_items = get_moon_goo_items()
     logging.info(f"Loaded moon goo items: {moon_goo_items}")
-
-    server_id = str(ctx.guild.id)
 
     # Collect all files for the server (assuming they are stored as {server_id}_{corporation_id}_structures.json)
     structure_files = [f for f in os.listdir('.') if f.startswith(f"{server_id}_") and f.endswith("_structures.json")]
@@ -118,7 +155,7 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
         response_message += "\n"  # Add a newline for separation
 
     # Save the aggregated moon drill assets to JSON
-    await save_moon_goo_to_json(moon_drill_assets)
+    await save_moon_goo_to_json(moon_drill_assets, server_id)
 
     # Send the message in chunks if necessary
     if len(response_message) > 2000:
@@ -128,38 +165,39 @@ async def handle_fetch_moon_goo_assets(ctx, structure_name=None):
     else:
         await ctx.send(response_message)
 
-async def update_moon_goo_items_in_json():
-    moon_goo_items = get_moon_goo_items()
-    logging.info(f"Loaded moon goo items: {moon_goo_items}")
-
-    moon_drill_ids = config.get_config('metenox_moon_drill_ids', [])
-    logging.info(f"Loaded moon drill IDs: {moon_drill_ids}")
-
-    all_assets_info = await get_all_structure_assets(moon_drill_ids, config.get_config('server_id'))  # Pass server_id here
-    
-    if isinstance(all_assets_info, str):
-        logging.error(all_assets_info)
-        return
-    
-    logging.info(f"Fetched assets info: {all_assets_info}")
-
-    aggregated_data = defaultdict(dict)
-    
-    for structure_id, assets_info in all_assets_info.items():
-        structure_name = f"Station {structure_id}"
-        
-        for asset in assets_info:
-            type_id = asset.get('type_id')
-            quantity = asset.get('quantity', 0)
-            
-            if type_id in moon_goo_items:
-                item_name = moon_goo_items[type_id]
-                if item_name in aggregated_data[structure_name]:
-                    aggregated_data[structure_name][item_name] += quantity
-                else:
-                    aggregated_data[structure_name][item_name] = quantity
-    
-    if not aggregated_data:
-        logging.info("No moon goo data found.")
-    else:
-        await save_moon_goo_to_json(aggregated_data)
+#async def update_moon_goo_items_in_json():
+#    moon_goo_items = get_moon_goo_items()
+#    logging.info(f"Loaded moon goo items: {moon_goo_items}")
+#
+#    moon_drill_ids = config.get_config('metenox_moon_drill_ids', [])
+#    logging.info(f"Loaded moon drill IDs: {moon_drill_ids}")
+#
+#    all_assets_info = await get_all_structure_assets(moon_drill_ids, config.get_config('server_id'))  # Pass server_id here
+#    
+#    if isinstance(all_assets_info, str):
+#        logging.error(all_assets_info)
+#        return
+#    
+#    logging.info(f"Fetched assets info: {all_assets_info}")
+#
+#    aggregated_data = defaultdict(dict)
+#    
+#    for structure_id, assets_info in all_assets_info.items():
+#        structure_name = f"Station {structure_id}"
+#        
+#        for asset in assets_info:
+#            type_id = asset.get('type_id')
+#            quantity = asset.get('quantity', 0)
+#            
+#            if type_id in moon_goo_items:
+#                item_name = moon_goo_items[type_id]
+#                if item_name in aggregated_data[structure_name]:
+#                    aggregated_data[structure_name][item_name] += quantity
+#                else:
+#                    aggregated_data[structure_name][item_name] = quantity
+#    
+#    if not aggregated_data:
+#        logging.info("No moon goo data found.")
+#    else:
+#        await save_moon_goo_to_json(aggregated_data)
+#

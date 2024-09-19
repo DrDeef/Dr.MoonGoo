@@ -71,7 +71,7 @@ async def refresh_token(server_id, corporation_id):
         return {}
 
     if not isinstance(refresh_token, str):
-        logging.error(f"Refresh token for server ID {server_id} and corporation ID {corporation_id} is not a string. Converting to string.")
+        logging.debug(f"Refresh token for server ID {server_id} and corporation ID {corporation_id} is not a string. Converting to string.")
         refresh_token = str(refresh_token)
 
     logging.debug(f"Refreshing token for server ID {server_id}, corporation ID {corporation_id}. Using refresh token: {refresh_token}")
@@ -111,7 +111,7 @@ async def refresh_token(server_id, corporation_id):
                 created_at = datetime.utcnow().isoformat() + "Z"  # Set the current UTC time for 'created_at'
                 character_id = response_data.get('character_id', existing_character_id)  # Preserve existing character_id
 
-                logging.info(f"New access token for server ID {server_id}, corporation ID {corporation_id}")
+                logging.debug(f"New access token for server ID {server_id}, corporation ID {corporation_id}")
 
                 # Save the tokens with the updated values
                 config.save_token(server_id, corporation_id, access_token, new_refresh_token, expires_in, created_at, character_id)
@@ -138,7 +138,7 @@ async def refresh_all_tokens():
                     response = await refresh_token(server_id, corporation_id)
 
                     if response:
-                        logging.info(f"Successfully refreshed access token for server ID {server_id}, corporation ID {corporation_id}.")
+                        logging.debug(f"Successfully refreshed access token for server ID {server_id}, corporation ID {corporation_id}.")
                     else:
                         logging.error(f"Failed to refresh access token for server ID {server_id}, corporation ID {corporation_id}.")
 

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>About Dr.MoonGoo</title>
+        <style>
+            /* Global Reset */
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+    
+            /* Body Styling */
+            body {
+                font-family: 'Arial', sans-serif;
+                overflow: auto;
+                background-color: black;
+            }
+    
+            /* Parallax Container */
+            .parallax-container {
+                position: relative;
+                width: 100vw;
+                height: 100vh;
+                overflow: hidden;
+            }
+    
+            /* Background Layer - Moon Mining Station */
+            .background-layer {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 150%;
+                height: 150%;
+                background: url('/images/moondrill_bg.jpeg') no-repeat center center;
+                background-size: cover;
+                transform: translate(-50%, -50%);
+                transition: transform 0.1s ease-out;
+            }
+    
+            /* Space Dust Layer */
+            .dust-layer {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 200%;
+                height: 200%;
+                pointer-events: none;
+                overflow: hidden;
+            }
+    
+            /* Individual Dust Particles */
+            .dust-particle {
+                position: absolute;
+                width: 10px; /* Increased size for cloud-like particles */
+                height: 10px;
+                background-color: rgba(253, 246, 43, 0.3); /* Yellow glow with transparency */
+                border-radius: 50%;
+                box-shadow: 0px 0px 10px 5px rgba(253, 246, 43, 0.5); /* Glow effect */
+                opacity: 0;
+                animation: float 8s infinite ease-in-out, fade 5s infinite ease-in-out alternate;
+            }
+    
+            /* Fade in/out effect for particles */
+            @keyframes fade {
+                0% {
+                    opacity: 0;
+                }
+                50% {
+                    opacity: 1;
+                }
+                100% {
+                    opacity: 0;
+                }
+            }
+    
+            /* Float animation for particles */
+            @keyframes float {
+                0% {
+                    transform: translate(0, 0);
+                }
+                50% {
+                    transform: translate(10px, -20px);
+                }
+                100% {
+                    transform: translate(-10px, 10px);
+                }
+            }
+    
+            /* Content Box Styling */
+            .content-box {
+                position: relative;
+                z-index: 10;
+                width: 95%;
+                max-width: 1100px; /* Increased size */
+                margin: 100px auto;
+                padding: 70px; /* Increased padding */
+                background-color: rgba(30, 30, 30, 0.9); /* Slight transparency */
+                border-radius: 15px;
+                color: white;
+                text-align: center;
+                box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.5); /* Increased shadow for depth */
+            }
+    
+            h1, h2 {
+                color: #FFCC00;
+                margin-bottom: 20px;
+            }
+    
+            p {
+                margin: 20px 0;
+                line-height: 1.6;
+            }
+    
+            /* Link Styling */
+            a {
+                display: inline-block;
+                margin: 10px;
+                padding: 12px 18px; /* Slightly larger buttons */
+                background-color: #FFCC00;
+                color: #1E1E1E;
+                text-decoration: none;
+                border-radius: 5px;
+                font-weight: bold;
+                transition: background-color 0.3s;
+            }
+    
+            a:hover {
+                background-color: #E6B800;
+            }
+    
+            /* Responsive Design */
+            @media (max-width: 768px) {
+                .content-box {
+                    width: 95%;
+                    padding: 20px;
+                }
+    
+                h1, h2 {
+                    font-size: 1.5rem;
+                }
+    
+                p {
+                    font-size: 1rem;
+                }
+    
+                a {
+                    padding: 10px 15px;
+                    font-size: 1rem;
+                }
+            }
+        </style>
+    </head>
+    
+<body>
+    <div class="parallax-container">
+        <!-- Background layer for moon mining station -->
+        <div class="background-layer"></div>
+
+        <!-- Space dust layer -->
+        <div class="dust-layer" id="dust-layer"></div>
+ 
+        <!-- Content box -->
+        <div class="content-box">
+            <h1>Contact</h1>
+            <p>If you have any questions, feel free to reach out through the channels below:</p>
+            <a href="https://discord.gg/uPkd893FZV" class="contact-link">Join Discord</a> <br>
+            <a href="https://github.com/DrDeef/Dr.MoonGoo" class="contact-link">View on GitHub</a> 
+
+            <h2>Donations</h2>
+            <p>You can donate ISK or in-game items:</p>
+            <a href="https://evewho.com/character/2122580011" class="donate-link">Donate to the Poor Internet Guy (In-Game)</a>
+
+            <h2>Interested in EvE Online?</h2>
+            <p>If you're interested in playing EvE Online, consider creating your account through the link below.<br>
+            You'll receive <b>1,000,000 skillpoints</b>, and I'll get some goodies from the <a href="https://www.eveonline.com/recruit">EvE recruitment program</a> if you purchase Omega.</p>
+            <a href="https://www.eveonline.com/signup?invc=eda593de-a80a-4af0-b6b3-a47250940c4e" class="recruitment-link">Start Now with 1,000,000 Skillpoints</a>
+        </div>
+    </div>
+</body>
+    <script>
+        // Parallax effect for moon mining station
+        const backgroundLayer = document.querySelector('.background-layer');
+        const dustLayer = document.getElementById('dust-layer');
+        const bubbleParticles = 150;  // Increase the initial number of particles
+        const bubbleParticleSpeed = 0.2;
+        const spawnInterval = 1000; // Time in milliseconds to spawn new particles
+    
+        // Set the initial position for the parallax background (before mouse movement)
+        function setInitialBackgroundPosition() {
+            const initialX = 0;
+            const initialY = 0;
+            backgroundLayer.style.transform = `translate(calc(-50% + ${initialX}px), calc(-50% + ${initialY}px))`;
+        }
+    
+        // Handle mouse movement for parallax effect
+        document.addEventListener('mousemove', function(e) {
+            const mouseX = (e.clientX / window.innerWidth) - 0.5;
+            const mouseY = (e.clientY / window.innerHeight) - 0.5;
+            
+            // Move the background layer slightly based on mouse movement
+            const parallaxX = mouseX * 15; // Adjust the intensity of the movement
+            const parallaxY = mouseY * 15;
+            backgroundLayer.style.transform = `translate(calc(-50% + ${parallaxX}px), calc(-50% + ${parallaxY}px))`;
+        });
+    
+        // Create a bubble particle with random properties
+        function createBubbleParticle() {
+            let particle = document.createElement('div');
+            particle.classList.add('bubble-particle');
+            
+            // Randomize position and size of bubbles, distributed across the screen
+            particle.style.left = (Math.random() * 100) + 'vw'; // Full screen width
+            particle.style.top = (Math.random() * 100) + 'vh';  // Full screen height
+            particle.style.width = (Math.random() * 20 + 10) + 'px'; // Smaller size for variation
+            particle.style.height = particle.style.width;
+            
+            // Add yellow glow effect and transparency for cloud-like bubbles
+            particle.style.background = 'rgba(255, 255, 0, 0.5)'; // Yellow color
+            particle.style.boxShadow = '0 0 15px rgba(255, 255, 0, 0.7)'; // Yellow glow
+            particle.style.opacity = Math.random() * 0.4 + 0.3; // Initial opacity
+            
+            // Add fading animation
+            particle.style.animation = `fade ${Math.random() * 20 + 15}s ease-in-out infinite, float ${Math.random() * 20 + 15}s ease-in-out infinite`;
+    
+            dustLayer.appendChild(particle);
+        }
+    
+        // Create initial bubble particles
+        function createInitialBubbleParticles() {
+            for (let i = 0; i < bubbleParticles; i++) {
+                createBubbleParticle();
+            }
+        }
+    
+        // Spawn additional particles continuously
+        function spawnBubbleParticles() {
+            setInterval(() => {
+                createBubbleParticle();
+            }, spawnInterval); // Spawn a new particle every second (adjust as needed)
+        }
+    
+        // Call functions to create initial particles and spawn more over time
+        createInitialBubbleParticles();
+        spawnBubbleParticles();
+    
+        // Set the initial background position
+        setInitialBackgroundPosition();
+    
+        // CSS for floating bubbles and fading effect
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = `
+            .bubble-particle {
+                position: absolute;
+                background: rgba(255, 255, 0, 0.5); /* Yellow color */
+                border-radius: 50%; /* Make the particles circular */
+                pointer-events: none; /* Prevent interaction */
+                animation: fade 10s ease-in-out infinite, float 15s ease-in-out infinite;
+            }
+            @keyframes float {
+                0% {
+                    transform: translateY(0px) translateX(0px);
+                }
+                25% {
+                    transform: translateY(-15px) translateX(-10px); /* Random movements */
+                }
+                50% {
+                    transform: translateY(-30px) translateX(20px); /* Random movements */
+                }
+                75% {
+                    transform: translateY(15px) translateX(-10px); /* Random movements */
+                }
+                100% {
+                    transform: translateY(0px) translateX(0px); /* Return to original position */
+                }
+            }
+            @keyframes fade {
+                0% {
+                    opacity: 0;
+                }
+                50% {
+                    opacity: 0.7;
+                }
+                100% {
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(styleSheet);
+    </script>
+    
+    
+</body>
+</html>
