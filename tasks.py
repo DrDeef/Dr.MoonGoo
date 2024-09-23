@@ -4,6 +4,7 @@ from config import save_server_structures, load_server_structures
 from structurecommands import get_moon_drills
 from discord.ext import tasks
 from administration import refresh_all_tokens
+from scheduler import run_alert_scheduler
 import os
 from mongodatabase import collect_moon_goo_data_and_save
 from market_calculation import fetch_market_stats_for_items
@@ -23,6 +24,18 @@ async def fetch_market_stats_task():
         await fetch_market_stats_for_items()
     except Exception as e:
         logging.error(f"Exception in fetch_market_stats_task: {str(e)}")
+
+@tasks.loop(minutes=1) 
+async def alert_scheduler_task(bot):
+    all_server_ids = [f.split('_')[0] for f in os.listdir('.') if f.endswith("_structures.json")]
+    for server_id in all_server_ids:
+        await run_alert_scheduler(bot, server_id)
+
+async def start_alert_scheduler(bot):
+    if not alert_scheduler_task.is_running():
+        logging.info("Starting alert_scheduler_task.")
+        alert_scheduler_task.start(bot)  # Pass the bot instance to the task
+
 
 @tasks.loop(minutes=60)
 async def save_data_to_mongodb_task():
@@ -112,3 +125,6 @@ def start_tasks(bot):
     if not fetch_market_stats_task.is_running():
         logging.info("Starting fetch_market_stats_task.")
         fetch_market_stats_task.start()
+    if not alert_scheduler_task.is_running():  # Check if the alert scheduler is running
+        logging.info("Starting alert_scheduler_task.")
+        alert_scheduler_task.start(bot)

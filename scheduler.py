@@ -1,15 +1,11 @@
 import asyncio
 from datetime import datetime, timedelta
-import yaml
-import requests
-import config
-import logging
-from administration import get_access_token
-from config import load_server_structures
 import json
 import os
-import discord
-from discord.ui import Select, View
+import logging
+import aiohttp
+from administration import get_access_token, extract_corporation_id_from_filename
+import config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,6 +20,7 @@ last_alert_times = {
 }
 
 async def run_alert_scheduler(bot, server_id):
+    logging.info(f"Starting alert scheduler for server {server_id}")
     while True:
         alert_channels = config.load_alert_channels()
         alert_channel_id = alert_channels.get(server_id)
@@ -33,21 +30,35 @@ async def run_alert_scheduler(bot, server_id):
 
         alert_channel = bot.get_channel(int(alert_channel_id))
         if alert_channel:
-            await check_gas_and_send_alerts(bot, alert_channel, server_id)
+            await check_gas_and_send_alerts(alert_channel, server_id)
 
         await asyncio.sleep(3600)  # Check every hour
 
 # Function to check gas and send alerts for a specific server
-async def check_gas_and_send_alerts(bot, alert_channel, server_id):
-    # Load structure info from YAML file
-    try:
-        with open('structure_info.yaml', 'r') as file:
-            structure_info = yaml.safe_load(file) or {}
-    except FileNotFoundError:
-        structure_info = {}
+async def check_gas_and_send_alerts(alert_channel, server_id):
+    # Dynamically determine the corporation_id and structure file
+    corporation_id = extract_corporation_id_from_filename(server_id)
+    if not corporation_id:
+        logging.error(f"Could not determine corporation ID for server {server_id}.")
+        return
+
+    structure_file = f"{server_id}_{corporation_id}_structures.json"
+    
+    if not os.path.exists(structure_file):
+        logging.error(f"Structure file {structure_file} not found.")
+        return
+
+    with open(structure_file, 'r') as file:
+        structure_info = json.load(file)
 
     moon_drill_ids = config.get_config('metenox_moon_drill_ids', server_id)
-    all_assets_info = await get_all_structure_assets_for_server(moon_drill_ids, server_id)
+    
+    try:
+        all_assets_info = await get_all_structure_assets_for_server(moon_drill_ids, server_id)
+    except Exception as e:
+        logging.error(f"Error getting assets info: {e}")
+        await alert_channel.send("Failed to retrieve structure assets.")
+        return
 
     if isinstance(all_assets_info, str):
         await alert_channel.send(all_assets_info)
@@ -98,31 +109,42 @@ async def handle_alerts(alert_channel, structure_name, alert_type, days, hours, 
             await alert_channel.send(f"**{structure_name}**: {alert_type.replace('_', ' ').title()} is running low!\n{alert_type.replace('_', ' ').title()}: ***{amount}***\nRuns out in: {days} Days {hours} Hours")
             last_alert_times[alert_type][structure_name]['24h'] = current_time
 
-
 # Helper function for structure alerts
 async def get_all_structure_assets_for_server(structure_ids, server_id):
-    access_token = await get_access_token(server_id)
+    corporation_id = extract_corporation_id_from_filename(server_id)
+    if not corporation_id:
+        return 'Failed to get corporation ID'
+
+    access_token = await get_access_token(server_id, corporation_id)
     if not access_token:
         return 'Failed to get access token'
-    
+
     headers = {'Authorization': f'Bearer {access_token}'}
-    corporation_id = config.get_config("corporation_id", server_id)
     url = f'https://esi.evetech.net/latest/corporations/{corporation_id}/assets/?datasource=tranquility'
-    response = requests.get(url, headers=headers)
-    data = response.json()
 
-    if 'error' in data:
-        return f"Error fetching structure assets: {data['error']}"
-    
-    all_assets = {}
-    for structure_id in structure_ids:
-        assets = [asset for asset in data if asset.get('location_id') == structure_id and asset.get('location_flag') == 'StructureFuel']
-        if assets:
-            all_assets[structure_id] = assets
-    
-    return all_assets
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                data = await response.json()
 
+        if 'error' in data:
+            return f"Error fetching structure assets: {data['error']}"
 
+        all_assets = {}
+        for structure_id in structure_ids:
+            assets = [asset for asset in data if asset.get('location_id') == structure_id and asset.get('location_flag') == 'StructureFuel']
+            if assets:
+                all_assets[structure_id] = assets
+
+        return all_assets
+
+    except aiohttp.ClientError as e:
+        logging.error(f"HTTP Client Error: {e}")
+        return "Failed to fetch structure assets."
+
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+        return "An unexpected error occurred."
 
 # Function to calculate depletion time
 def calculate_depletion_time(amount, rate_per_hour):
@@ -134,29 +156,6 @@ def calculate_depletion_time(amount, rate_per_hour):
     remaining_time = depletion_time - datetime.utcnow()
 
     days, remainder = divmod(remaining_time.total_seconds(), 86400)
-    hours, remainder = divmod(remainder, 3600)
-    minutes, seconds = divmod(remainder, 60)
+    hours, _ = divmod(remainder, 3600)
 
     return depletion_time, int(days), int(hours)
-
-# Function to get all structure assets for a specific server
-async def get_all_structure_assets(structure_ids, server_id):
-    access_token = await get_access_token()
-    if not access_token:
-        return 'Failed to get access token'
-    
-    headers = {'Authorization': f'Bearer {access_token}'}
-    url = f'https://esi.evetech.net/latest/corporations/{config.get_config("corporation_id")}/assets/?datasource=tranquility'
-    response = requests.get(url, headers=headers)
-    data = response.json()
-
-    if 'error' in data:
-        return f"Error fetching structure assets: {data['error']}"
-    
-    all_assets = {}
-    for structure_id in structure_ids:
-        assets = [asset for asset in data if asset.get('location_id') == structure_id and asset.get('location_flag') == 'StructureFuel']
-        if assets:
-            all_assets[structure_id] = assets
-    
-    return all_assets

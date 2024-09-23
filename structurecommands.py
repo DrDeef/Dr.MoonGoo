@@ -256,17 +256,3 @@ async def get_structure_name(server_id, structure_id):
             return 'Unknown Structure'
 
       
-#def load_moon_drill_ids(server_id):
-#    """Load moon drill IDs for a specific server from the JSON file."""
-#    try:
-#        with open('server_structures.json', 'r') as file:
-#            server_structures = json.load(file)
-#        
-#        return server_structures.get(server_id, {}).get('metenox_moon_drill_ids', [])
-#    
-#    except FileNotFoundError:
-#        logging.error("server_structures.json file not found.")
-#        return []
-#    except json.JSONDecodeError:
-#        logging.error("Error decoding JSON from server_structures.json.")
-#        return []
