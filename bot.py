@@ -61,8 +61,12 @@ async def on_guild_join(guild):
 
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
+    # Check if it's a component interaction
     if interaction.type == discord.InteractionType.component:
-        if interaction.data.get("custom_id") == "select_alert_channel":
+        custom_id = interaction.data.get('custom_id', '')
+        
+        if custom_id == 'select_alert_channel':
+            # Handle alert channel selection
             selected_channel_id = interaction.data.get("values", [])[0]
             server_id = str(interaction.guild.id)
 
@@ -72,9 +76,21 @@ async def on_interaction(interaction: discord.Interaction):
 
             await interaction.response.send_message(f"Alert channel set to <#{selected_channel_id}>")
 
+            # Start alert scheduler if not already running
             if not any(task.get_name() == f"alert_scheduler_{server_id}" for task in asyncio.all_tasks()):
                 asyncio.create_task(run_alert_scheduler(bot, server_id), name=f"alert_scheduler_{server_id}")
 
+        elif custom_id == 'select_structure':
+            # Handle structure selection
+            selected_structure_name = interaction.data['values'][0]
+            moon_goo_data = await load_moon_goo_from_json(str(interaction.guild.id))
+
+            if selected_structure_name in moon_goo_data:
+                await handle_structure_pricing(interaction, selected_structure_name)
+            else:
+                await interaction.response.send_message("Selected structure not found in the moon goo data.")
+
+                
 async def is_admin(ctx):
     admin_roles = config.get_config('admin_role', [])
     return any(get(ctx.guild.roles, name=role_name) in ctx.author.roles for role_name in admin_roles)
