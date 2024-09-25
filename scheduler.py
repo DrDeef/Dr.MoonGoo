@@ -115,7 +115,7 @@ async def get_all_structure_assets_for_server(structure_ids, server_id):
     if not corporation_id:
         return 'Failed to get corporation ID'
 
-    access_token = await get_access_token(server_id, corporation_id)
+    access_token = get_access_token(server_id, corporation_id)
     if not access_token:
         return 'Failed to get access token'
 

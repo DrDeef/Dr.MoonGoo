@@ -8,14 +8,12 @@ import pandas as pd
 import os
 import discord
 from moongoo_commands import handle_fetch_moon_goo_assets
-from config import save_results_to_file, save_server_structures, load_server_structures
+from config import save_server_structures, load_server_structures
 from datetime import datetime, timedelta
 from administration import extract_corporation_id_from_filename
-from collections import defaultdict
 from moongoo import get_moon_goo_items
 from structurecommands import get_all_structure_assets, get_moon_drills, update_structure_info
-from mongodatabase import collect_moon_goo_data_and_save
-from moongoo_commands import save_moon_goo_to_json, load_moon_goo_from_json, load_moon_goo_data
+from moongoo_commands import load_moon_goo_from_json
 from market_calculation import format_number, load_market_stats, send_message_in_chunks
 
 logging.basicConfig(level=logging.INFO)
