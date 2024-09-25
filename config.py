@@ -12,8 +12,6 @@ config_file = 'config.yaml'
 tokens_file = 'tokens.json'
 alert_channel_file = 'alert_channels.json'
 USE_MONGODB = True
-MONGO_URI = "your_mongodb_connection_uri"
-MONGO_DB_NAME = "your_database_name"
 
 def load_config():
     global config
