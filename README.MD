@@ -174,7 +174,7 @@ Happy Mooning! 🚀
 
 ## Donate
 
-If you like the Bot, please consider donating ISK ingame to [PoorInternetGuy](https://evewho.com/character/2122580011)
+If you like the Bot, please consider donating ISK ingame to [Ralon Borio](https://evewho.com/character/1586742899)
 
 ## Terms<a name="terms"></a>
 
