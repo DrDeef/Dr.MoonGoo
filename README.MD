@@ -1,6 +1,4 @@
-![Version](https://img.shields.io/badge/version-0.5-green) ![Docker Pulls](https://img.shields.io/docker/pulls/drdeef/drmoongoo) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/drdeef/Dr.MoonGoo?style=flat&color=yellow)
-
-
+[![Build and Push Docker Image](https://github.com/DrDeef/Dr.MoonGoo/actions/workflows/docker-image.yml/badge.svg)](https://github.com/DrDeef/Dr.MoonGoo/actions/workflows/docker-image.yml) ![Version](https://img.shields.io/badge/version-0.6-green) ![Docker Pulls](https://img.shields.io/docker/pulls/drdeef/drmoongoo) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/drdeef/Dr.MoonGoo?style=flat&color=yellow)
 
 # If you like Moons and Goo, i have a solution for you!
 <img src="images/drMoonGoo.jpg" alt="DrMoonGoo" width="250"/>
