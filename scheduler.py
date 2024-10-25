@@ -81,7 +81,7 @@ async def check_gas_and_send_alerts(alert_channel, server_id):
         magmatic_gas_amount = asset_totals['Magmatic Gas']
         fuel_blocks_amount = asset_totals['Fuel Blocks']
 
-        magmatic_gas_depletion_time, magmatic_gas_days, magmatic_gas_hours = calculate_depletion_time(magmatic_gas_amount, 55)
+        magmatic_gas_depletion_time, magmatic_gas_days, magmatic_gas_hours = calculate_depletion_time(magmatic_gas_amount, 110)
         fuel_blocks_depletion_time, fuel_blocks_days, fuel_blocks_hours = calculate_depletion_time(fuel_blocks_amount, 5)
 
         # Use helper function for alerts
@@ -108,6 +108,7 @@ async def handle_alerts(alert_channel, structure_name, alert_type, days, hours, 
                             current_time - last_alert_times[alert_type][structure_name]['24h'] >= timedelta(days=1)):
             await alert_channel.send(f"**{structure_name}**: {alert_type.replace('_', ' ').title()} is running low!\n{alert_type.replace('_', ' ').title()}: ***{amount}***\nRuns out in: {days} Days {hours} Hours")
             last_alert_times[alert_type][structure_name]['24h'] = current_time
+
 
 # Helper function for structure alerts
 async def get_all_structure_assets_for_server(structure_ids, server_id):
