@@ -3,6 +3,7 @@ name: Build and Push Docker Image
 on:
   release:
     types: [created]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -27,6 +28,6 @@ jobs:
         context: .
         push: true
         tags: |
-          drdeef/drmoongoo:${{ github.event.release.tag }}
-          drdeef/drmoongoo:${{ github.event.release.tag }}-arm64
+          drdeef/drmoongoo:${{ github.event.release.tag || 'latest' }}
+          drdeef/drmoongoo:${{ github.event.release.tag || 'latest' }}-arm64
         platforms: linux/amd64,linux/arm64
