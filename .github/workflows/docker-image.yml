@@ -29,5 +29,5 @@ jobs:
         push: true
         tags: |
           drdeef/drmoongoo:latest
-          drdeef/drmoongoo:${{ github.event.release.tag }}
+          drdeef/drmoongoo:${{ github.event.release.tag || 'latest' }}
         platforms: linux/amd64,linux/arm64
