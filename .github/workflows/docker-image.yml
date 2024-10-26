@@ -28,6 +28,6 @@ jobs:
         context: .
         push: true
         tags: |
-          drdeef/drmoongoo:${{ github.event.release.tag || 'latest' }}
-          drdeef/drmoongoo:${{ github.event.release.tag || 'latest' }}-arm64
+          drdeef/drmoongoo:latest
+          drdeef/drmoongoo:${{ github.event.release.tag }}
         platforms: linux/amd64,linux/arm64
