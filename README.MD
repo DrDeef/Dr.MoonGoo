@@ -159,14 +159,14 @@ Gas runs out in: **0 Days 8 Hours**
 - **!selectalertchannel**: Select the channel you wanna be alerted to.
 - **!spacegoblin**: Guess who is a good spacegoblin?
 
-## Presented by Mem3nto Mori & Regnum Astera
+## Presented by Herr Borio & the Evil Space Goblins
 
-[![Mem3nto Mori](https://images.evetech.net/corporations/98676479/logo?size=128)](https://discord.gg/kU3EsHnjVc)[![Regnum Astera](https://e.dotlan.net/images/Alliance/99012040_128.png)](https://discord.gg/uPkd893FZV)
+[![Evil Space Goblins](https://images.evetech.net/corporations/98133337/logo?size=128)](https://discord.gg/4N3EZph6Ab)
 
-If you’re looking for a strong and dedicated EVE Online alliance to join, consider **Regnum Astera**!
+If you’re looking for a strong and dedicated EVE Online Corporation to join, consider **the Evil Space Goblins**!
 Join us and be part of something epic!
 
-For more information reach out to us directly on [Discord](https://discord.gg/uPkd893FZV)
+For more information reach out to us directly on [Discord](https://discord.gg/4N3EZph6Ab)
 
 Happy Mooning! 🚀
 
