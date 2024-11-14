@@ -19,8 +19,8 @@ jobs:
     - name: Log in to Docker Hub
       uses: docker/login-action@v2
       with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
     - name: Build and push Docker images
       uses: docker/build-push-action@v2
@@ -28,6 +28,6 @@ jobs:
         context: .
         push: true
         tags: |
+          drdeef/drmoongoo:latest
           drdeef/drmoongoo:${{ github.event.release.tag || 'latest' }}
-          drdeef/drmoongoo:${{ github.event.release.tag || 'latest' }}-arm64
         platforms: linux/amd64,linux/arm64
