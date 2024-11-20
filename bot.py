@@ -1,12 +1,12 @@
 import discord
 import logging
 import threading
-import base64
 import requests
-import uuid
 import asyncio
 import datetime
-from flask import Flask, request, render_template
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from discord.ext import commands
 from discord.ui import Select, View
 from discord.utils import get
@@ -15,11 +15,16 @@ import config
 import tasks
 from moongoo_commands import load_moon_goo_from_json
 from datetime import datetime
-from flask import Flask, send_from_directory
 from administration import get_character_info, get_corporation_id
 from commands import (
     handle_mongo_pricing, handle_setup, handle_authenticate, handle_update_moondrills, handle_checkgas, handle_spacegoblin, handle_showadmin, handle_help, handle_fetch_moon_goo_assets, handle_structure_pricing
 )
+
+# FastAPI setup
+app = FastAPI()
+
+# Serve static files (e.g., images)
+app.mount("/images", StaticFiles(directory="images"), name="images")
 
 # Fetch the configuration values
 CALLBACK_URL = config.get_config('eve_online_callback_url')
@@ -33,12 +38,7 @@ intents.message_content = True  # Enable the message content intent
 # Initialize the bot with the defined intents
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-app = Flask(__name__)
-
 bot_start_time = datetime.utcnow()
-
-def run_flask():
-    app.run(host='127.0.0.1', port=5005, ssl_context=None)
 
 # Load tokens and server IDs from file
 tokens = config.load_all_tokens()
@@ -61,12 +61,9 @@ async def on_guild_join(guild):
 
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
-    # Check if it's a component interaction
     if interaction.type == discord.InteractionType.component:
         custom_id = interaction.data.get('custom_id', '')
-        
         if custom_id == 'select_alert_channel':
-            # Handle alert channel selection
             selected_channel_id = interaction.data.get("values", [])[0]
             server_id = str(interaction.guild.id)
 
@@ -81,7 +78,6 @@ async def on_interaction(interaction: discord.Interaction):
                 asyncio.create_task(run_alert_scheduler(bot, server_id), name=f"alert_scheduler_{server_id}")
 
         elif custom_id == 'select_structure':
-            # Handle structure selection
             selected_structure_name = interaction.data['values'][0]
             moon_goo_data = await load_moon_goo_from_json(str(interaction.guild.id))
 
@@ -90,162 +86,9 @@ async def on_interaction(interaction: discord.Interaction):
             else:
                 await interaction.response.send_message("Selected structure not found in the moon goo data.")
 
-                
-async def is_admin(ctx):
-    admin_roles = config.get_config('admin_role', [])
-    return any(get(ctx.guild.roles, name=role_name) in ctx.author.roles for role_name in admin_roles)
-
-@bot.command()
-async def showadmin(ctx):
-    if not await is_admin(ctx):
-        await ctx.send("You are not authorized to use this command.")
-        return
-    await handle_showadmin(ctx.message)
-
-@bot.command()
-async def selectalertchannel(ctx):
-    channels = ctx.guild.text_channels
-    if not channels:
-        await ctx.send("No text channels found in this server.")
-        return
-
-    options = [discord.SelectOption(label=channel.name, value=str(channel.id)) for channel in channels[:25]]
-    if not options:
-        await ctx.send("No text channels available for selection.")
-        return
-
-    select = Select(
-        placeholder="Choose a channel...",
-        options=options,
-        custom_id="select_alert_channel"
-    )
-    
-    view = View()
-
-    async def select_callback(interaction: discord.Interaction):
-        if interaction.user != ctx.author:
-            await interaction.response.send_message("You are not allowed to use this menu.", ephemeral=True)
-            return
-        
-        selected_channel_id = interaction.data.get("values", [])[0]
-
-        alert_channels = config.load_alert_channels()
-        server_id = str(ctx.guild.id)
-        alert_channels[server_id] = selected_channel_id
-        config.save_alert_channels(alert_channels)
-
-        await interaction.response.send_message(f"Alert channel set to <#{selected_channel_id}>", ephemeral=True)
-
-        if not any(task.get_name() == f"alert_scheduler_{server_id}" for task in asyncio.all_tasks()):
-            asyncio.create_task(run_alert_scheduler(bot, server_id), name=f"alert_scheduler_{server_id}")
-
-    select.callback = select_callback
-    view.add_item(select)
-
-    await ctx.send("Select an alert channel:", view=view)
-
-# Assuming bot is already defined as 'bot'
-@bot.command(name='report')
-async def report(ctx):
-    server_id = str(ctx.guild.id)
-    moon_goo_data = await load_moon_goo_from_json(server_id)
-
-    if moon_goo_data:
-        # Create options for each station (assuming the station names can be used for selection)
-        options = [discord.SelectOption(label=name, value=name) for name in moon_goo_data.keys()]
-        select = discord.ui.Select(placeholder='Select a structure...', options=options, custom_id='select_structure')
-        view = discord.ui.View()
-        view.add_item(select)
-        await ctx.send("Please select a structure to report on:", view=view)
-    else:
-        await ctx.send("No moon goo data found for this server.")
-
-@bot.event
-async def on_interaction(interaction: discord.Interaction):
-    # Check if it's a component interaction
-    if interaction.type == discord.InteractionType.component:
-        # Fetch custom_id from the component interaction data
-        custom_id = interaction.data.get('custom_id', '')
-        
-        if custom_id == 'select_structure':
-            # Get the selected structure name
-            selected_structure_name = interaction.data['values'][0]
-            moon_goo_data = await load_moon_goo_from_json(str(interaction.guild.id))
-
-            # Ensure the selected structure is in the data
-            if selected_structure_name in moon_goo_data:
-                await handle_structure_pricing(interaction, selected_structure_name)
-            else:
-                await interaction.response.send_message("Selected structure not found in the moon goo data.")
-
-
-@bot.command()
-async def authenticate(ctx):
-    if not await is_admin(ctx):
-        await ctx.send("You are not authorized to use this command.")
-        return
-    await handle_authenticate(ctx)
-
-@bot.command()
-async def updatemoondrills(ctx):
-    if not await is_admin(ctx):
-        await ctx.send("You are not authorized to use this command.")
-        return
-    await handle_update_moondrills(ctx)
-
-@bot.command()
-async def checkGoo(ctx):
-    if not await is_admin(ctx):
-        await ctx.send("You are not authorized to use this command.")
-        return
-    await ctx.send("Collecting your MoonGoo information. This may take a moment...")
-    await handle_fetch_moon_goo_assets(ctx)
-
-@bot.command()
-async def checkGas(ctx):
-    await ctx.send("Checking the Fuel Gauges of your Drills! This may take a moment...")
-    await handle_checkgas(ctx)
-
-@bot.command()
-async def getMeGoo(ctx):
-    if not await is_admin(ctx):
-        await ctx.send("You are not authorized to use this command.")
-        return
-    await ctx.send("Running System Check and updating Data... Please Wait")
-    await handle_setup(ctx)
-
-@bot.command()
-async def goohelp(ctx):
-    await handle_help(ctx)
-
-@bot.command()
-async def spacegoblin(ctx):
-    await handle_spacegoblin(ctx)
-
-@bot.command(name="reportAll")
-async def moongoo_report_all(ctx):
-    try:
-        await ctx.send("Generating the moon goo report. Please wait... \n ")
-
-        # Run the overall handler function
-        await handle_mongo_pricing(ctx)
-
-
-    except Exception as e:
-        logging.error(f"Error in moongoo_report_all command: {e}")
-        await ctx.send(f"An error occurred: {e}")
-
-@app.route('/images/<path:filename>')
-def serve_image(filename):
-    # Ensure that the 'images' folder is in the same directory as your app.py
-    return send_from_directory('images', filename)
-
-
-@app.route('/oauth-callback')
-def oauth_callback():
-    code = request.args.get('code')
-    state = request.args.get('state')
-
+# FastAPI route handlers
+@app.get('/oauth-callback')
+async def oauth_callback(code: str = None, state: str = None):
     if not code or not state:
         return "Missing code or state parameter", 400
 
@@ -293,23 +136,21 @@ def oauth_callback():
 
     config.save_token(server_id, corporation_id, access_token, refresh_token, expires_in, created_at, character_id)
 
-    return render_template('oauth_callback.html', character_info=character_info, corporation_id=corporation_id)
+    return HTMLResponse(content="<h1>OAuth Callback Successful!</h1>")
 
-@app.route('/terms-of-service')
-def tos():
-    return render_template('tos.html')
+@app.get('/terms-of-service')
+async def tos():
+    return HTMLResponse(content="<h1>Terms of Service</h1>")
 
-@app.route('/about')
-def about():
-    return render_template('about.html')
+@app.get('/about')
+async def about():
+    return HTMLResponse(content="<h1>About Us</h1>")
 
-@app.route('/privacy-policy')
-def privacy():
-    return render_template('policy.html')
+@app.get('/privacy-policy')
+async def privacy():
+    return HTMLResponse(content="<h1>Privacy Policy</h1>")
 
-bot_version = "0.5"  
-
-#### bot start, do not edit!
+# Run FastAPI with Uvicorn
 if __name__ == "__main__":
     try:
         config.load_config()
@@ -317,8 +158,9 @@ if __name__ == "__main__":
         server_ids = config.get_all_server_ids()
         print("Server IDs:", server_ids)
 
-        flask_thread = threading.Thread(target=run_flask)
-        flask_thread.start()
+        # Start the FastAPI app using Uvicorn
+        import uvicorn
+        uvicorn.run(app, host="127.0.0.1", port=5005)
 
         bot.run(config.get_config('discord_bot_token', ''))
     except discord.errors.LoginFailure:

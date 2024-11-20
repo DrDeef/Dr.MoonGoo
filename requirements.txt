@@ -27,4 +27,6 @@ six==1.16.0
 tzdata==2024.1
 urllib3==2.2.2
 Werkzeug==3.0.6
-yarl==1.9.4
+uvicorn==0.32.0
+yarl==1.17.2
+fastapi==0.115.5
