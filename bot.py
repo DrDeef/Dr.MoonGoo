@@ -307,7 +307,7 @@ def about():
 def privacy():
     return render_template('policy.html')
 
-bot_version = "0.5"  
+bot_version = "0.7.1"
 
 #### bot start, do not edit!
 if __name__ == "__main__":
